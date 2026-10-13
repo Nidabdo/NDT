@@ -1,0 +1,91 @@
+{
+  "questions": [
+    {
+      "text": "Poste",
+      "tag": "q5",
+      "type": "choice",
+      "choices": [
+        "Windows",
+        "Linux"
+      ],
+      "required": true,
+      "id": "7d14eb77",
+      "next": "23a37ba0",
+      "routes": [
+        "23a37ba0",
+        ""
+      ]
+    },
+    {
+      "id": "3269b1a6",
+      "text": "distrib / vlan",
+      "type": "free",
+      "choices": [],
+      "routes": [],
+      "required": true,
+      "next": "23a37ba0",
+      "tag": "q6"
+    },
+    {
+      "text": "GRE",
+      "tag": "q1",
+      "type": "free",
+      "choices": [],
+      "required": true,
+      "id": "23a37ba0",
+      "next": "8499bea8",
+      "routes": []
+    },
+    {
+      "text": "Problématique / Comment le problème se produit",
+      "tag": "q4",
+      "type": "free",
+      "choices": [],
+      "required": true,
+      "id": "8499bea8",
+      "next": "",
+      "routes": []
+    },
+    {
+      "id": "f998bae4",
+      "text": "Depuis quand",
+      "type": "free",
+      "choices": [],
+      "routes": [],
+      "required": false,
+      "next": "",
+      "tag": "q8"
+    },
+    {
+      "id": "7dfefe2c",
+      "text": "Nombre de personne impactée(s)",
+      "type": "free",
+      "choices": [],
+      "routes": [],
+      "required": false,
+      "next": "",
+      "tag": "q7"
+    },
+    {
+      "text": "Téléphone",
+      "tag": "q2",
+      "type": "free",
+      "choices": [],
+      "required": true,
+      "id": "7cbf6aa5",
+      "next": "",
+      "routes": []
+    },
+    {
+      "text": "Bat / pièce",
+      "tag": "q3",
+      "type": "free",
+      "choices": [],
+      "required": false,
+      "id": "0ffdc398",
+      "next": "",
+      "routes": []
+    }
+  ],
+  "template": "Descriptif de la problématique:\n- Quelle erreur ? {q4}\n- Depuis quand ? {q8}\n- Sur quel(s) GRE ? Poste {q5} {q1} {q6}\n- Nombre de personne(s) impactée(s):{q7}\n- Contact privilégié (Skype/téléphone), bâtiment, pièce, téléphone: {q2} {q3}"
+}
