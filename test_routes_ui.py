@@ -15,6 +15,29 @@ def children(widget):
 
 
 class RouteUITest(unittest.TestCase):
+    def test_seven_question_cards_fit_small_window(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.object(ndt,'SETTINGS_FILE',Path(directory)/'settings.json'):
+                app=ndt.App();app.attributes('-alpha',0)
+                try:
+                    app.geometry('800x600')
+                    app.questions=ndt.normalize([
+                        dict(id='os',text='Poste',type='choice',choices=['Linux','Windows'])
+                    ]+[dict(id=str(i),text=label,type='free') for i,label in enumerate([
+                        'Distribution / VLAN','GRE','Problématique / Comment le problème se produit',
+                        'Depuis quand','Nombre de personnes impactées','Téléphone','Bâtiment / pièce'
+                    ],1)])
+                    for theme in ('light','dark'):
+                        app.theme=theme;app.p=ndt.PALETTES[theme];app.apply_theme()
+                        app.answers={0:0};app.skipped=set();app.show_form();app.update()
+                        self.assertEqual(len(app.form.fields),7)
+                        self.assertLessEqual(app.form.rows.winfo_reqheight(),app.form.canvas.winfo_height()+2)
+                        self.assertFalse(app.form.scrollbar.winfo_manager())
+                        for panel in app.form.row_panels:
+                            self.assertLessEqual(panel.winfo_rooty()+panel.winfo_height(),
+                                                 app.form.canvas.winfo_rooty()+app.form.canvas.winfo_height()+2)
+                finally:app.destroy()
+
     def test_result_actions_stay_inside_small_window(self):
         with tempfile.TemporaryDirectory() as directory:
             with patch.object(ndt,'SETTINGS_FILE',Path(directory)/'settings.json'):

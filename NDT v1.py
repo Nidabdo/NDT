@@ -19,7 +19,7 @@ from pathlib import Path
 from tkinter import ttk
 from parcours_editor import ParcoursEditor
 from coordination_auth import verify_coordinateur, save_coordinateur_password
-from documentation import Documentation
+from documentation import Documentation, ArticleList
 from diagnostic_form import DiagnosticForm, RoundedField, RoundedPanel, SearchBox, rounded, style_rounded_button
 
 # Compte personnel, non affiché dans l'interface de connexion.
@@ -45,19 +45,21 @@ FONT = "Segoe UI"
 
 PALETTES = {
     "light": {
-        "bg": "#f3f6f8", "surface": "#ffffff", "fg": "#172b40", "muted": "#5e7181",
-        "accent": "#087f75", "accent_hover": "#09695f", "accent_fg": "#ffffff",
-        "border": "#dce5ec", "input": "#ffffff", "tab": "#e7eef2",
-        "btn": "#e7eef2", "btn_hover": "#d8e5ea", "select": "#e8f5f2",
-        "hover": "#f1f8f6", "disabled": "#e7eef2", "ok": "#087f75",
+        "bg": "#eff3f2", "surface": "#ffffff", "fg": "#172b40", "muted": "#5c6e7c",
+        "accent": "#087d72", "accent_hover": "#09695f", "accent_fg": "#ffffff",
+        "border": "#d9e3df", "input": "#f3f7f5", "tab": "#e5ece9",
+        "btn": "#ffffff", "btn_hover": "#e4f2ec", "select": "#e4f2ec",
+        "hover": "#f3f7f5", "disabled": "#e5ece9", "ok": "#087d72",
+        "sidebar": "#122a3d", "sidebar_select": "#23475a", "sidebar_hover": "#2b514f", "shadow": "#e0e8e4",
         "danger": "#dc2626",
     },
     "dark": {
-        "bg": "#0f172a", "surface": "#1e293b", "fg": "#f1f5f9", "muted": "#94a3b8",
-        "accent": "#66ddd0", "accent_hover": "#8ae8de", "accent_fg": "#10282d",
-        "border": "#334155", "input": "#0b1220", "tab": "#162033",
-        "btn": "#334155", "btn_hover": "#475569", "select": "#243e43",
-        "hover": "#263449", "disabled": "#162033", "ok": "#4ade80",
+        "bg": "#0d1724", "surface": "#152232", "fg": "#edf4fa", "muted": "#a4b6c7",
+        "accent": "#72dfcd", "accent_hover": "#8ae8de", "accent_fg": "#102f32",
+        "border": "#344758", "input": "#0f1b29", "tab": "#101e2c",
+        "btn": "#152232", "btn_hover": "#203e45", "select": "#203e45",
+        "hover": "#1d3345", "disabled": "#101e2c", "ok": "#72dfcd",
+        "sidebar": "#0a1420", "sidebar_select": "#18313e", "sidebar_hover": "#203e45", "shadow": "#0a1420",
         "danger": "#f87171",
     },
 }
@@ -234,13 +236,13 @@ class ChoiceCard(tk.Canvas):
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("NDT 1.8 — Le diagnostic, guidé")
+        self.title("NDT 1.10 — Le diagnostic, guidé")
         self.geometry("1180x800")
         self.minsize(800, 600)
 
         self.settings = load_settings()
-        if self.settings.get("design_version") != 2:
-            self.settings.update(theme="light", design_version=2)
+        if self.settings.get("design_version") != 3:
+            self.settings.update(theme="light", design_version=3)
             save_settings(self.settings)
         self.theme = self.settings.get("theme", "dark")
         if self.theme not in PALETTES:
@@ -277,19 +279,21 @@ class App(tk.Tk):
 
     # ===== Thème =====
     def build_header(self):
-        sidebar = ttk.Frame(self, style="Sidebar.TFrame", width=190, padding=(18, 28))
+        sidebar = RoundedPanel(self,self,padding=16,radius=20,surface='sidebar',
+                               body_style='Sidebar.TFrame',autosize=False,shadow=False)
+        sidebar.configure(width=190)
         self.sidebar = sidebar
-        sidebar.pack(side="left", fill="y")
-        sidebar.pack_propagate(False)
-        ttk.Label(sidebar, text="NDT.", style="Sidebar.Brand.TLabel").pack(anchor="w", padx=10)
-        ttk.Label(sidebar, text="Le diagnostic, guidé.", style="Sidebar.Muted.TLabel").pack(anchor="w", padx=10, pady=(0, 38))
+        sidebar.pack(side="left", fill="y",padx=(12,0),pady=12)
+        nav_body=sidebar.body
+        ttk.Label(nav_body, text="NDT.", style="Sidebar.Brand.TLabel").pack(anchor="w", padx=6,pady=(6,0))
+        ttk.Label(nav_body, text="Le diagnostic, guidé.", style="Sidebar.Muted.TLabel").pack(anchor="w", padx=6, pady=(0, 38))
         self.nav_buttons = {}
         for label, key in (("Accueil", "home"), ("Diagnostic", "question"), ("Documentation", "documentation")):
-            btn = ttk.Button(sidebar, text=label, style="Sidebar.TButton",
+            btn = ttk.Button(nav_body, text=label, style="Sidebar.TButton",
                              command=lambda k=key: self.navigate(k))
             btn.pack(fill="x", pady=5)
             self.nav_buttons[key] = btn
-        ttk.Label(sidebar, text="NDT 1.8\nESPACE ASSISTANCE",
+        ttk.Label(nav_body, text="NDT 1.10\nESPACE ASSISTANCE",
                   style="Sidebar.Muted.TLabel", justify="left", wraplength=140).pack(side="bottom", anchor="w", padx=10)
         self.workspace = ttk.Frame(self)
         self.workspace.pack(side="left", fill="both", expand=True)
@@ -301,8 +305,10 @@ class App(tk.Tk):
                                     command=self.toggle_theme)
         self.theme_btn.pack(side="right")
         self.compact_nav = ttk.Frame(self.workspace, padding=(18, 0))
+        self.compact_nav_buttons={}
         for label, key in (("Accueil", "home"), ("Diagnostic", "question"), ("Documentation", "documentation")):
-            ttk.Button(self.compact_nav, text=label, command=lambda k=key:self.navigate(k)).pack(side='left', padx=(0,8))
+            button=ttk.Button(self.compact_nav, text=label,style='Nav.TButton',command=lambda k=key:self.navigate(k))
+            button.pack(side='left',padx=(0,8));self.compact_nav_buttons[key]=button
         footer = ttk.Frame(self.workspace, padding=(32, 0, 24, 16))
         footer.pack(side="bottom", fill="x")
         ttk.Button(footer, text="Coordination", style="Admin.TButton",
@@ -317,7 +323,7 @@ class App(tk.Tk):
             if self.sidebar.winfo_manager(): self.sidebar.pack_forget()
             if not self.compact_nav.winfo_manager():self.compact_nav.pack(fill='x',before=self.container)
         elif not self.sidebar.winfo_manager():
-            self.sidebar.pack(side='left', fill='y', before=self.workspace)
+            self.sidebar.pack(side='left', fill='y', before=self.workspace,padx=(12,0),pady=12)
             self.compact_nav.pack_forget()
 
     def set_screen(self, screen, title):
@@ -325,6 +331,8 @@ class App(tk.Tk):
         self.breadcrumb.set("ESPACE ASSISTANCE  /  " + title.upper())
         for key, button in self.nav_buttons.items():
             button.configure(style="Sidebar.Active.TButton" if key == screen else "Sidebar.TButton")
+        for key,button in self.compact_nav_buttons.items():
+            button.configure(style='Nav.Active.TButton' if key==screen else 'Nav.TButton')
 
     def navigate(self, target):
         if target == getattr(self, "screen", None):
@@ -364,7 +372,7 @@ class App(tk.Tk):
         # Étiquettes (une variante par fond : fenêtre, carte, en-tête)
         variants = {
             "TLabel": {},
-            "Title.TLabel": {"font": (FONT, 24, "bold")},
+            "Title.TLabel": {"font": (FONT, 22, "bold")},
             "H2.TLabel": {"font": (FONT, 15, "bold")},
             "Muted.TLabel": {"foreground": p["muted"], "font": (FONT, 10)},
             "Question.TLabel": {"font": (FONT, 17, "bold")},
@@ -380,7 +388,7 @@ class App(tk.Tk):
                     foreground=p["accent"], font=(FONT, 16, "bold"))
 
         # Boutons
-        def button(name, bg, fg, hover, font=(FONT, 10, "bold"), padding=(16, 9)):
+        def button(name, bg, fg, hover, font=(FONT, 10, "bold"), padding=(16, 9),indicator=None):
             s.configure(name, background=bg, foreground=fg, bordercolor=bg,
                         lightcolor=bg, darkcolor=bg, focuscolor=bg,
                         relief="flat", borderwidth=1, padding=padding, font=font)
@@ -388,26 +396,29 @@ class App(tk.Tk):
                   bordercolor=[("active", hover), ("pressed", hover)],
                   lightcolor=[("active", hover), ("pressed", hover)],
                   darkcolor=[("active", hover), ("pressed", hover)])
-            style_rounded_button(self, name, bg, hover)
+            style_rounded_button(self, name, bg, hover,indicator)
             # Le fond derrière les coins transparents doit rester celui du panneau.
-            corner = '#122a3d' if name.startswith('Sidebar.') else p['bg']
+            corner = p['sidebar'] if name.startswith('Sidebar.') else p['bg']
             s.configure(name, background=corner)
             s.map(name, background=[('active', corner), ('pressed', corner)])
         button("TButton", p["btn"], p["fg"], p["btn_hover"])
         button("Accent.TButton", p["accent"], p["accent_fg"], p["accent_hover"])
         button("Danger.TButton", p["btn"], p["danger"], p["btn_hover"])
-        button("Admin.TButton", "#b91c1c", "#ffffff", "#991b1b", padding=(14, 7))
-        button("Ghost.TButton", p["surface"], p["muted"], p["btn"],
+        button("Admin.TButton", "#b42331", "#ffffff", "#991c29", padding=(14, 7))
+        button("Ghost.TButton", p["bg"], p["muted"], p["select"],
                padding=(12, 6))
+        button('Card.Ghost.TButton',p['surface'],p['muted'],p['select'],padding=(12,6))
         for base in ('TButton', 'Accent.TButton', 'Danger.TButton', 'Ghost.TButton'):
             s.configure('Card.' + base, background=p['surface'])
             s.map('Card.' + base, background=[('active', p['surface']), ('pressed', p['surface'])])
-        s.configure("Sidebar.TFrame", background="#122a3d")
-        s.configure("Sidebar.Brand.TLabel", background="#122a3d", foreground="#65d8c6", font=(FONT, 30, "bold"))
-        s.configure("Sidebar.Muted.TLabel", background="#122a3d", foreground="#b5c7d5", font=(FONT, 10))
+        s.configure("Sidebar.TFrame", background=p['sidebar'])
+        s.configure("Sidebar.Brand.TLabel", background=p['sidebar'], foreground="#65d8c6", font=(FONT, 30, "bold"))
+        s.configure("Sidebar.Muted.TLabel", background=p['sidebar'], foreground="#b5c7d5", font=(FONT, 10))
         s.configure("Eyebrow.TLabel", background=p["bg"], foreground=p["accent"], font=(FONT, 10, "bold"))
-        button("Sidebar.TButton", "#122a3d", "#bfd0de", "#254559", padding=(14, 14))
-        button("Sidebar.Active.TButton", "#254559", "#ffffff", "#31596d", padding=(14, 14))
+        button("Sidebar.TButton", p['sidebar'], "#bfd0de", p['sidebar_hover'], padding=(14, 12))
+        button("Sidebar.Active.TButton", p['sidebar_select'], "#ffffff", p['sidebar_hover'], padding=(14, 12),indicator='#70ddc9')
+        button('Nav.TButton',p['bg'],p['muted'],p['select'],padding=(14,9))
+        button('Nav.Active.TButton',p['select'],p['accent'],p['select'],padding=(14,9),indicator=p['accent'])
         s.configure("Sidebar.TButton", anchor="w")
         s.configure("Sidebar.Active.TButton", anchor="w")
 
@@ -496,10 +507,10 @@ class App(tk.Tk):
             w.draw()
         elif isinstance(w, tk.Text) and isinstance(w.master, RoundedField):
             w.master.draw()
-        elif isinstance(w, ChoiceCard):
+        elif isinstance(w, (ChoiceCard, ArticleList)):
             w.draw()
         elif isinstance(w, tk.Canvas):
-            w.configure(bg=p["surface"] if w == getattr(self, "choice_canvas", None) else p["bg"])
+            w.configure(bg=p["surface"] if w == getattr(self, "choice_canvas", None) or getattr(w,'_surface_background',False) else p["bg"])
             if getattr(self, "screen", None) == "admin" and hasattr(self, "parcours_editor") and w == self.parcours_editor.canvas:
                 self.parcours_editor.draw()
         elif isinstance(w, tk.Text):
@@ -668,7 +679,7 @@ class App(tk.Tk):
         wrap = ttk.Frame(self.container)
         wrap.pack(fill="x", pady=(30, 0))
         ttk.Label(wrap, text="ESPACE TECHNICIEN", style="Eyebrow.TLabel").pack(anchor="w")
-        ttk.Label(wrap, text="Comment pouvons-nous vous aider ?", style="Title.TLabel").pack(anchor="w", pady=(12, 8))
+        ttk.Label(wrap, text="Votre point de départ.", style="Title.TLabel").pack(anchor="w", pady=(12, 8))
         ttk.Label(wrap, text="Décrire un incident ou retrouver la bonne procédure.",
                   style="Muted.TLabel").pack(anchor="w", pady=(0, 32))
         tiles = ttk.Frame(wrap)
@@ -959,6 +970,8 @@ class App(tk.Tk):
         scroll.pack(side="right", fill="y")
         text.insert("1.0", self.result_text)
         text.configure(state="disabled")
+        text._documentation_content=True
+        self.paint(text)
 
         bar = ttk.Frame(card, style="Surface.TFrame")
         bar.grid(row=3, column=0, sticky="ew", pady=(12, 0))

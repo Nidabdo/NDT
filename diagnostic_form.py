@@ -21,23 +21,28 @@ def visible_path(questions, answers, resolve, skipped=()):
     return path
 
 
-def style_rounded_button(app,name,bg,hover):
+def style_rounded_button(app,name,bg,hover,indicator=None):
     if not hasattr(app,'button_images'):app.button_images={}
     element=name.replace('.','')+'.rounded'
     images=app.button_images.get(name)
     if images is None:
-        images=[tk.PhotoImage(master=app,width=48,height=48) for _ in range(3)]
+        images=[tk.PhotoImage(master=app,width=40,height=40) for _ in range(3)]
         app.button_images[name]=images
-        app.style.element_create(element,'image',images[0],('pressed',images[1]),('active',images[1]),('focus',images[2]),border=20,padding=0,sticky='nsew')
+        app.style.element_create(element,'image',images[0],('pressed',images[1]),('active',images[1]),('focus',images[2]),border=16,padding=0,sticky='nsew')
         app.style.layout(name,[(element,{'sticky':'nsew','children':[('Button.padding',{'sticky':'nsew','children':[('Button.label',{'sticky':'nsew'})]})]})])
     for index,(image,color) in enumerate(zip(images,[bg,hover,bg])):
         image.blank()
-        for y in range(48):
-            distance=max(0,18-min(y,47-y)-0.5)
-            left=max(0,math.ceil(18-math.sqrt(max(0,324-distance*distance))))
-            image.put(app.p['fg'] if index==2 else color,to=(left,y,48-left,y+1))
-            if index==2 and 2<=y<46:
-                image.put(color,to=(min(left+2,23),y,max(48-left-2,25),y+1))
+        radius=8 if name.startswith(('Sidebar.','Nav.')) else 14
+        for y in range(40):
+            distance=max(0,radius-min(y,39-y)-0.5)
+            left=max(0,math.ceil(radius-math.sqrt(max(0,radius*radius-distance*distance))))
+            focus_color='#70ddc9' if name.startswith('Sidebar.') else app.p['fg']
+            image.put(focus_color if index==2 else color,to=(left,y,40-left,y+1))
+            if index==2 and 2<=y<38:
+                image.put(color,to=(min(left+2,19),y,max(40-left-2,21),y+1))
+            if indicator:
+                # Le trait épouse tout le bord gauche, y compris ses deux courbes.
+                image.put(indicator,to=(left,y,left+3,y+1))
 
 
 def rounded(canvas,x,y,w,h,r,**kw):
@@ -51,20 +56,49 @@ def rounded(canvas,x,y,w,h,r,**kw):
 
 
 class RoundedPanel(tk.Canvas):
-    def __init__(self,parent,app,padding=24):
+    def __init__(self,parent,app,padding=24,radius=20,surface='surface',body_style='Surface.TFrame',autosize=True,shadow=True,accent_top=False):
         super().__init__(parent,bg=app.p['bg'],highlightthickness=0,width=100,height=160)
         self.app,self.padding=app,padding
-        self.body=ttk.Frame(self,style='Surface.TFrame')
+        self.radius,self.surface,self.autosize,self.shadow=radius,surface,autosize,shadow
+        self.accent_top=accent_top
+        self.body=ttk.Frame(self,style=body_style)
         self.window=self.create_window(padding,padding,window=self.body,anchor='nw')
         self.bind('<Configure>',lambda e:self.draw())
         self.body.bind('<Configure>',lambda e:self.fit())
     def fit(self):
+        if not self.autosize:return
         needed=self.body.winfo_reqheight()+2*self.padding
         if int(self.cget('height'))!=needed:self.configure(height=needed)
     def draw(self):
         p=self.app.p;self.configure(bg=p['bg']);self.delete('shell')
-        w,h=max(60,self.winfo_width()),max(60,self.winfo_height())
-        rounded(self,1,1,w-2,h-2,30,fill=p['surface'],outline=p['border'],width=1,tags='shell')
+        w,h=max(60,self.winfo_width()),max(8,self.winfo_height())
+        if self.shadow:
+            rounded(self,2,4,w-4,h-5,self.radius,fill=p.get('shadow',p['border']),outline='',tags='shell')
+        rounded(self,1,1,w-2,h-(5 if self.shadow else 2),self.radius,fill=p[self.surface],
+                outline=p[self.surface] if self.surface=='sidebar' else p['border'],width=1,tags='shell')
+        if self.accent_top:
+            r=min(self.radius,(w-2)/2,(h-2)/2)
+            points=[]
+            for cx,start in ((r+1,180),(w-r-1,270)):
+                for step in range(13):
+                    angle=math.radians(start+step*7.5)
+                    points.extend((cx+r*math.cos(angle),r+1+r*math.sin(angle)))
+            self.create_line(*points,fill=p['accent'],width=1.5,tags='shell')
+        self.tag_lower('shell')
+        self.itemconfigure(self.window,width=max(10,w-2*self.padding),height=max(10,h-2*self.padding))
+
+
+class FormRow(RoundedPanel):
+    """Une ligne du panneau de diagnostic, séparée par un simple filet."""
+    def __init__(self,parent,app,last=False,**kwargs):
+        self.last=last
+        super().__init__(parent,app,**kwargs)
+
+    def draw(self):
+        p=self.app.p
+        self.configure(bg=p['surface']);self.delete('shell')
+        w,h=max(60,self.winfo_width()),max(8,self.winfo_height())
+        if not self.last:self.create_line(4,h-1,w-4,h-1,fill=p['border'],tags='shell')
         self.tag_lower('shell')
         self.itemconfigure(self.window,width=max(10,w-2*self.padding),height=max(10,h-2*self.padding))
 
@@ -76,7 +110,7 @@ class RoundedField(tk.Canvas):
         self.text=tk.Text(self,wrap='word',font=('Segoe UI',11),relief='flat',bd=0,
                           highlightthickness=0,padx=0,pady=0,undo=True,height=3)
         self.text.insert('1.0',value)
-        self.window=self.create_window(15,12,window=self.text,anchor='nw')
+        self.window=self.create_window(12,8,window=self.text,anchor='nw')
         self.bind('<Configure>',lambda e:self.draw())
         self.text.bind('<FocusIn>',lambda e:self.draw())
         self.text.bind('<FocusOut>',lambda e:self.draw())
@@ -89,20 +123,23 @@ class RoundedField(tk.Canvas):
 
     def draw(self):
         p=self.app.p
-        self.configure(bg=p['bg'])
+        self.configure(bg=p['surface'])
         self.delete('shell')
         w=max(self.winfo_width(),40)
-        h=max(40,self.winfo_height())
-        rounded(self,2,2,w-4,h-4,24,fill=p['surface'],outline=p['accent'] if self.text.focus_get()==self.text else p['border'],width=2,tags='shell')
+        h=max(24,self.winfo_height())
+        pad_y=6 if h<36 else 8
+        rounded(self,1,1,w-2,h-2,8,fill=p['input'],outline=p['accent'] if self.text.focus_get()==self.text else p['border'],width=1,tags='shell')
         self.tag_lower('shell')
-        self.itemconfigure(self.window,width=max(w-32,10),height=max(20,h-24))
-        self.text.configure(bg=p['surface'],fg=p['fg'],insertbackground=p['fg'],selectbackground=p['accent'],selectforeground=p['accent_fg'])
+        self.coords(self.window,12,pad_y)
+        self.itemconfigure(self.window,width=max(w-24,10),height=max(18,h-2*pad_y))
+        self.text.configure(bg=p['input'],fg=p['fg'],font=('Segoe UI',10 if h<36 else 11),insertbackground=p['fg'],selectbackground=p['accent'],selectforeground=p['accent_fg'])
 
 
 class SearchBox(tk.Canvas):
-    def __init__(self,parent,app,variable):
+    def __init__(self,parent,app,variable,radius=18):
         super().__init__(parent,height=52,width=180,highlightthickness=0)
         self.app=app
+        self.radius=radius
         self.entry=tk.Entry(self,textvariable=variable,font=('Segoe UI',11),relief='flat',bd=0,highlightthickness=0)
         self.window=self.create_window(20,26,window=self.entry,anchor='w')
         self.bind('<Configure>',lambda e:self.draw())
@@ -111,7 +148,7 @@ class SearchBox(tk.Canvas):
     def draw(self):
         p=self.app.p;self.configure(bg=p['bg']);self.delete('shell')
         w=max(60,self.winfo_width())
-        rounded(self,1,1,w-2,50,18,fill=p['surface'],outline=p['accent'] if self.entry.focus_get()==self.entry else p['border'],width=1,tags='shell')
+        rounded(self,1,1,w-2,50,self.radius,fill=p['surface'],outline=p['accent'] if self.entry.focus_get()==self.entry else p['border'],width=1,tags='shell')
         self.tag_lower('shell');self.itemconfigure(self.window,width=max(20,w-40))
         self.entry.configure(bg=p['surface'],fg=p['fg'],insertbackground=p['fg'],selectbackground=p['accent'],selectforeground=p['accent_fg'])
 
@@ -130,46 +167,52 @@ class DiagnosticForm(ttk.Frame):
         root_answer=app.answer_text(0)
         self.heading=ttk.Label(top,text=f'Votre diagnostic · {root_answer}',style='Title.TLabel',wraplength=670)
         self.heading.pack(side='left')
-        self.change_button=ttk.Button(top,text='Changer de poste',command=self.change_root);self.change_button.pack(side='right')
-        self.intro=ttk.Label(self,text='Complétez votre parcours. * Réponse obligatoire.',style='Muted.TLabel',wraplength=850)
-        self.intro.pack(anchor='w',pady=(0,8))
-        footer=ttk.Frame(self);footer.pack(side='bottom',fill='x',pady=(18,0))
+        self.change_button=ttk.Button(top,text='Changer de poste',style='Ghost.TButton',command=self.change_root);self.change_button.pack(side='right')
+        self.intro=ttk.Label(self,text=f'Poste {root_answer} · Complétez les réponses face aux questions. * Obligatoire.',style='Muted.TLabel',wraplength=850)
+        self.intro.pack(anchor='w',pady=(0,6))
+        footer=ttk.Frame(self);footer.pack(side='bottom',fill='x',pady=(8,0))
         ttk.Label(footer,textvariable=self.counter,style='Muted.TLabel').pack(side='left')
         ttk.Button(footer,text='Créer la synthèse  →',style='Accent.TButton',command=self.finish).pack(side='right')
-        area=ttk.Frame(self);area.pack(fill='both',expand=True)
-        self.canvas=tk.Canvas(area,bg=app.p['bg'],highlightthickness=0)
+        self.sheet=RoundedPanel(self,app,padding=8,radius=9,shadow=False,accent_top=True)
+        self.sheet.pack(fill='both',expand=True)
+        area=self.sheet.body
+        self.canvas=tk.Canvas(area,bg=app.p['surface'],highlightthickness=0)
+        self.canvas._surface_background=True
         sb=ttk.Scrollbar(area,command=self.canvas.yview);self.scrollbar=sb
         self.canvas.pack(side='left',fill='both',expand=True);self.canvas.configure(yscrollcommand=sb.set)
-        self.rows=ttk.Frame(self.canvas)
+        self.rows=ttk.Frame(self.canvas,style='Surface.TFrame')
         self.window=self.canvas.create_window(0,0,window=self.rows,anchor='nw')
         self.canvas.bind('<Configure>',self.reflow)
         self.rows.bind('<Configure>',lambda e:self.update_scroll())
-        self.rows.columnconfigure(0,weight=0,minsize=230)
-        self.rows.columnconfigure(1,weight=1)
+        self.rows.columnconfigure(0,weight=1)
         self.row_widgets=[]
+        self.row_panels=[]
         for row,i in enumerate(self.path[1:]):
             q=app.questions[i]
-            label=ttk.Label(self.rows,text=q['text']+(' *' if q['required'] else ''),wraplength=205,justify='left',font=('Segoe UI',11,'bold'))
-            label.grid(row=row,column=0,sticky='w',padx=(0,18),pady=6)
+            panel=FormRow(self.rows,app,padding=8,last=row==len(self.path)-2,autosize=False)
+            panel.grid(row=row,column=0,sticky='ew')
+            self.row_panels.append(panel)
+            label=ttk.Label(panel.body,text=q['text']+(' *' if q['required'] else ''),style='Card.TLabel',wraplength=205,justify='left',font=('Segoe UI',11,'bold'))
+            label.grid(row=0,column=0,sticky='w',padx=(4,16))
             if q['type']=='free':
-                field=RoundedField(self.rows,app,app.answers.get(i,''),lambda value,index=i:self.record(index,value or None))
-                field.grid(row=row,column=1,sticky='ew',padx=(0,4),pady=5)
+                field=RoundedField(panel.body,app,app.answers.get(i,''),lambda value,index=i:self.record(index,value or None))
+                field.grid(row=0,column=1,sticky='ew')
                 self.fields[i]=field.text
             else:
-                group=ttk.Frame(self.rows);group.grid(row=row,column=1,sticky='ew',padx=(0,4),pady=5)
+                group=ttk.Frame(panel.body,style='Surface.TFrame');group.grid(row=0,column=1,sticky='ew')
                 field=group
                 variable=tk.StringVar(value=q['choices'][app.answers[i]] if i in app.answers else 'Choisir une réponse…')
                 combo=ttk.Combobox(group,values=q['choices'],textvariable=variable,state='readonly',font=('Segoe UI',11))
                 combo.pack(fill='x',ipady=6)
                 combo.bind('<<ComboboxSelected>>',lambda e,index=i,w=combo:self.choose(index,w.current()))
                 if not q['required']:
-                    ttk.Button(group,text='Sans réponse',command=lambda index=i:self.choose(index,None)).pack(anchor='e',pady=(6,0))
+                    ttk.Button(group,text='Sans réponse',style='Card.Ghost.TButton',command=lambda index=i:self.choose(index,None)).pack(anchor='e',pady=(6,0))
                 self.fields[i]=combo
             self.row_widgets.append((label,field))
         if self.path and app.questions[self.path[-1]]['type']=='choice' and self.path[-1] not in app.answers:
-            ttk.Label(self.rows,text='Les questions suivantes s’adapteront à cette réponse.',style='Muted.TLabel',wraplength=620).grid(row=len(self.path),column=0,columnspan=2,sticky='w',pady=16)
+            ttk.Label(self.rows,text='Les questions suivantes s’adapteront à cette réponse.',style='Card.Muted.TLabel',wraplength=620).grid(row=len(self.path),column=0,columnspan=2,sticky='w',pady=16)
         if len(self.path)==1:
-            ttk.Label(self.rows,text='Ce parcours est terminé. Vous pouvez créer la synthèse.',style='H2.TLabel').grid(row=0,column=0,columnspan=2,pady=24)
+            ttk.Label(self.rows,text='Ce parcours est terminé. Vous pouvez créer la synthèse.',style='Card.H2.TLabel').grid(row=0,column=0,columnspan=2,pady=24)
         self.progress()
         def wheel(e):
             steps=-int(e.delta/120)
@@ -187,17 +230,28 @@ class DiagnosticForm(ttk.Frame):
         height=max(self.canvas.winfo_height(),200)
         self.canvas.itemconfigure(self.window,width=width)
         narrow=width<500
-        label_width=min(260,max(150,int(width*.30)))
-        self.rows.columnconfigure(0,minsize=0 if narrow else label_width,weight=1 if narrow else 0)
-        self.rows.columnconfigure(1,weight=0 if narrow else 1)
+        label_width=min(260,max(150,int(width*.34)))
         count=max(1,len(self.row_widgets))
-        field_height=max(46,min(72,(height-12)//count-12))
+        compact=height<390
+        padding=4 if compact else 8
+        gap=0
+        field_height=max(30 if compact else 34,min(54,(height-8)//count-(2*padding+gap+4)))
         for row,(label,field) in enumerate(self.row_widgets):
-            label.configure(wraplength=width-20 if narrow else label_width-20)
-            label.grid_configure(row=row*2 if narrow else row,column=0,pady=(8,2) if narrow else 5)
-            field.grid_configure(row=row*2+1 if narrow else row,column=0 if narrow else 1,pady=(0,6) if narrow else 5)
+            panel=self.row_panels[row]
+            panel.padding=padding
+            panel.coords(panel.window,padding,padding)
+            panel.grid_configure(pady=(0,gap))
+            panel.body.columnconfigure(0,minsize=0 if narrow else label_width,weight=1 if narrow else 0)
+            panel.body.columnconfigure(1,weight=0 if narrow else 1)
+            label.configure(wraplength=width-50 if narrow else label_width-24,font=('Segoe UI',10 if compact else 11,'bold'))
+            label.grid_configure(row=0,column=0,pady=(0,6) if narrow else 0)
+            field.grid_configure(row=1 if narrow else 0,column=0 if narrow else 1,pady=0)
             if isinstance(field,RoundedField):field.configure(height=field_height)
-        self.heading.configure(wraplength=max(180,self.winfo_width()-210),font=('Segoe UI',18 if width<700 else 24,'bold'))
+            content_height=field_height if isinstance(field,RoundedField) else field.winfo_reqheight()
+            content_height=(label.winfo_reqheight()+6+content_height) if narrow else max(label.winfo_reqheight(),content_height)
+            panel.configure(height=content_height+2*padding)
+            panel.draw()
+        self.heading.configure(wraplength=max(180,self.winfo_width()-210),font=('Segoe UI',18 if width<700 or self.winfo_height()<520 else 22,'bold'))
         self.intro.configure(wraplength=max(200,width))
 
     def update_scroll(self):

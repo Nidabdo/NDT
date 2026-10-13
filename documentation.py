@@ -6,7 +6,7 @@ import unicodedata
 import uuid
 import tkinter as tk
 from tkinter import ttk
-from diagnostic_form import RoundedPanel, SearchBox
+from diagnostic_form import RoundedPanel, SearchBox, rounded
 
 SYSTEMS=('Tous','Windows','Linux')
 
@@ -52,6 +52,96 @@ def search_articles(articles,query='',system='Tous'):
     return sorted(result,key=lambda a:folded(a['title']))
 
 
+class ArticleList(tk.Canvas):
+    """Liste compacte de procédures avec sélection et navigation au clavier."""
+    def __init__(self,parent,app):
+        super().__init__(parent,width=260,height=180,highlightthickness=0,
+                         takefocus=True,yscrollincrement=24,bg=app.p['surface'])
+        self.app=app
+        self.articles=[]
+        self.selected_id=None
+        self.bounds=[]
+        self.bind('<Configure>',lambda e:self.draw())
+        self.bind('<FocusIn>',lambda e:self.draw())
+        self.bind('<FocusOut>',lambda e:self.draw())
+        self.bind('<Button-1>',self.click)
+        self.bind('<MouseWheel>',self.wheel)
+        for key in ('Up','Down','Home','End','Prior','Next'):
+            self.bind('<'+key+'>',self.navigate)
+
+    def set_articles(self,articles):
+        self.articles=articles
+        self.draw()
+
+    def draw(self):
+        p=self.app.p
+        self.configure(bg=p['surface'])
+        self.delete('all')
+        self.bounds=[]
+        width=max(180,self.winfo_width())
+        y=1
+        for index,article in enumerate(self.articles):
+            selected=article['id']==self.selected_id
+            title=self.create_text(13,y+12,text=article['title'],anchor='nw',
+                width=width-28,font=('Segoe UI',10,'bold'),fill=p['fg'])
+            title_bottom=self.bbox(title)[3]
+            system='Tous les systèmes' if article['system']=='Tous' else article['system']
+            metadata=' · '.join(filter(None,[article['category'],system]))
+            meta=self.create_text(13,title_bottom+5,text=metadata,anchor='nw',
+                width=width-28,font=('Segoe UI',9),fill=p['muted'])
+            bottom=max(y+68,self.bbox(meta)[3]+12)
+            if selected:
+                card=rounded(self,1,y,width-3,bottom-y,5,
+                    fill=p['select'],outline=p['accent'] if self.focus_get()==self else p['border'],width=1)
+                self.tag_lower(card)
+            if index<len(self.articles)-1:
+                self.create_line(10,bottom,width-11,bottom,fill=p['border'],width=1)
+            self.bounds.append((article['id'],y,bottom))
+            y=bottom+1
+        self.configure(scrollregion=(0,0,width,max(0,y)))
+
+    def selection(self):
+        return (self.selected_id,) if self.selected_id else ()
+
+    def selection_set(self,article_id):
+        if article_id not in {a['id'] for a in self.articles}:article_id=None
+        changed=self.selected_id!=article_id
+        self.selected_id=article_id
+        self.draw()
+        if changed:self.event_generate('<<ArticleSelect>>')
+
+    def see(self,article_id):
+        bounds=next((b for b in self.bounds if b[0]==article_id),None)
+        if not bounds:return
+        _,top,bottom=bounds
+        viewport=max(1,self.winfo_height())
+        current=self.canvasy(0)
+        total=max(1,self.bounds[-1][2]+2)
+        if top<current:self.yview_moveto(max(0,top-2)/total)
+        elif bottom>current+viewport:self.yview_moveto(max(0,bottom-viewport+2)/total)
+
+    def click(self,event):
+        self.focus_set()
+        y=self.canvasy(event.y)
+        selected=next((i for i,top,bottom in self.bounds if top<=y<=bottom),None)
+        if selected:self.selection_set(selected)
+
+    def wheel(self,event):
+        if self.yview()!=(0.0,1.0):self.yview_scroll(-int(event.delta/120),'units')
+        return 'break'
+
+    def navigate(self,event):
+        if not self.articles:return 'break'
+        ids=[a['id'] for a in self.articles]
+        current=ids.index(self.selected_id) if self.selected_id in ids else 0
+        page=max(1,self.winfo_height()//69)
+        index={'Up':current-1,'Down':current+1,'Home':0,'End':len(ids)-1,
+               'Prior':current-page,'Next':current+page}[event.keysym]
+        selected=ids[max(0,min(index,len(ids)-1))]
+        self.selection_set(selected);self.see(selected)
+        return 'break'
+
+
 class Documentation(ttk.Frame):
     def __init__(self,parent,app,path,editable=False):
         super().__init__(parent)
@@ -66,7 +156,7 @@ class Documentation(ttk.Frame):
         ttk.Label(controls,text='Rechercher',style='Muted.TLabel').pack(side='left',padx=(0,12))
         self.query=tk.StringVar()
         search_row=ttk.Frame(controls);search_row.pack(side='left',fill='x',expand=True)
-        self.search_box=SearchBox(search_row,app,self.query)
+        self.search_box=SearchBox(search_row,app,self.query,radius=8)
         self.search_box.pack(side='left',fill='x',expand=True)
         self.search=self.search_box.entry
         ttk.Button(search_row,text='Effacer',command=lambda:self.query.set('')).pack(side='right',padx=(8,0))
@@ -86,14 +176,19 @@ class Documentation(ttk.Frame):
                 if self.failed:b.state(['disabled'])
         self.panes=ttk.Frame(self);self.panes.pack(fill='both',expand=True)
         self.panes.columnconfigure(1,weight=1);self.panes.rowconfigure(0,weight=1)
-        self.list_frame=RoundedPanel(self.panes,app,padding=12)
-        self.list_frame.grid(row=0,column=0,sticky='nsew',padx=(0,18))
-        self.listbox=ttk.Treeview(self.list_frame.body,show='tree',selectmode='browse',style='Library.Treeview',height=3)
-        self.listbox.column('#0',width=250,minwidth=160,stretch=True)
+        self.list_frame=RoundedPanel(self.panes,app,padding=6,radius=8,shadow=False)
+        self.list_frame.configure(width=280)
+        self.list_frame.grid(row=0,column=0,sticky='nsew',padx=(0,14))
+        self.listbox=ArticleList(self.list_frame.body,app)
         ls=ttk.Scrollbar(self.list_frame.body,command=self.listbox.yview)
-        ls.pack(side='right',fill='y');self.listbox.pack(side='left',fill='both',expand=True)
-        self.listbox.configure(yscrollcommand=ls.set)
-        self.reader=RoundedPanel(self.panes,app,padding=20)
+        self.listbox.pack(side='left',fill='both',expand=True)
+        def scroll_state(first,last):
+            ls.set(first,last)
+            if float(first)>0 or float(last)<1:
+                if not ls.winfo_manager():ls.pack(side='right',fill='y',before=self.listbox)
+            elif ls.winfo_manager():ls.pack_forget()
+        self.listbox.configure(yscrollcommand=scroll_state)
+        self.reader=RoundedPanel(self.panes,app,padding=20,radius=8,shadow=False)
         self.reader.grid(row=0,column=1,sticky='nsew')
         self.title=ttk.Label(self.reader.body,style='Card.H2.TLabel',wraplength=500)
         self.title.pack(anchor='w',fill='x')
@@ -108,7 +203,7 @@ class Documentation(ttk.Frame):
         self.content.configure(yscrollcommand=sb.set,state='disabled')
         self.content._documentation_content=True
         app.paint(self.content)
-        self.listbox.bind('<<TreeviewSelect>>',self.select)
+        self.listbox.bind('<<ArticleSelect>>',self.select)
         self.query.trace_add('write',lambda *_:self.refresh())
         self.system.trace_add('write',lambda *_:self.refresh())
         self.panes.bind('<Configure>',self.reflow)
@@ -116,28 +211,25 @@ class Documentation(ttk.Frame):
 
     def reflow(self,event):
         narrow=event.width<650
-        self.list_frame.configure(width=max(220,min(300,int(event.width*.32))))
+        list_width=max(220,min(300,int(event.width*.32)))
+        self.list_frame.configure(width=list_width)
+        self.listbox.configure(width=list_width-12,height=80 if narrow else 180)
         self.panes.columnconfigure(0,weight=1 if narrow else 0)
         self.panes.columnconfigure(1,weight=0 if narrow else 1)
         self.panes.rowconfigure(0,weight=0 if narrow else 1)
         self.panes.rowconfigure(1,weight=1 if narrow else 0)
-        self.list_frame.grid_configure(row=0,column=0,padx=(0,0) if narrow else (0,18),pady=(0,10) if narrow else 0)
-        self.listbox.configure(height=2 if narrow else 3)
-        self.listbox.column('#0',width=max(160,min(270,int(event.width*.32)))-24)
+        self.list_frame.grid_configure(row=0,column=0,padx=(0,0) if narrow else (0,14),pady=(0,10) if narrow else 0)
         self.reader.grid_configure(row=1 if narrow else 0,column=0 if narrow else 1)
 
     def refresh(self):
         self.results=search_articles(self.articles,self.query.get(),self.system.get())
-        self.listbox.delete(*self.listbox.get_children())
-        for a in self.results:
-            title=a['title'] if len(a['title'])<=30 else a['title'][:27]+'…'
-            metadata=' · '.join(filter(None,[a['system'],a['category']]))
-            self.listbox.insert('','end',iid=a['id'],text=title+'\n'+metadata[:38])
+        self.listbox.set_articles(self.results)
         for key,button in self.filter_buttons.items():button.configure(style='Accent.TButton' if key==self.system.get() else 'TButton')
         self.count.set('Fichier à vérifier' if self.failed else f'{len(self.results)} procédure(s)')
         index=next((i for i,a in enumerate(self.results) if a['id']==self.selected_id),0)
         if self.results:
             self.listbox.selection_set(self.results[index]['id']);self.listbox.see(self.results[index]['id'])
+        else:self.listbox.selection_set(None)
         self.select()
 
     def select(self,_event=None):
