@@ -9,6 +9,7 @@ from PIL import Image
 from article_images import ImageDocument, ArticleImageEditor, encode_image, validate_images
 from documentation import save_articles, load_articles
 from test_documentation import descendants
+import droits
 from test_routes import ndt
 
 
@@ -77,7 +78,7 @@ class ImageEditorIntegrationTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             path=Path(folder)/'documentation.json'
             with patch.object(ndt,'DOCUMENTATION_FILE',path),patch.object(ndt,'SETTINGS_FILE',Path(folder)/'settings.json'):
-                app=ndt.App();app.attributes('-alpha',0)
+                app=ndt.App(session=droits.session_bypass());app.attributes('-alpha',0)
                 try:
                     app.session_user='coordinateur';app.show_admin();app.documentation_editor.edit_article()
                     win=next(w for w in app.winfo_children() if isinstance(w,tk.Toplevel))

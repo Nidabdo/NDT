@@ -68,14 +68,63 @@ _advapi32.LogonUserW.argtypes = [wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.LP
                                  wintypes.DWORD, wintypes.DWORD, ctypes.POINTER(wintypes.HANDLE)]
 
 
-def verifier_identifiants(utilisateur: str, domaine: str, mot_de_passe: str) -> None:
-    """Lève OSError si le contrôleur de domaine refuse les identifiants."""
+def _logon(utilisateur: str, domaine: str, mot_de_passe: str) -> wintypes.HANDLE:
     LOGON32_LOGON_NETWORK, LOGON32_PROVIDER_DEFAULT = 3, 0
     jeton = wintypes.HANDLE()
     if not _advapi32.LogonUserW(utilisateur, domaine, mot_de_passe, LOGON32_LOGON_NETWORK,
                                 LOGON32_PROVIDER_DEFAULT, ctypes.byref(jeton)):
         raise _erreur(ctypes.get_last_error())
-    _kernel32.CloseHandle(jeton)
+    return jeton
+
+
+def verifier_identifiants(utilisateur: str, domaine: str, mot_de_passe: str) -> None:
+    """Lève OSError si le contrôleur de domaine refuse les identifiants."""
+    _kernel32.CloseHandle(_logon(utilisateur, domaine, mot_de_passe))
+
+
+# --- Groupes du compte (remplace _AD_IsMemberOf) ---
+
+class _SID_AND_ATTRIBUTES(ctypes.Structure):
+    _fields_ = [("Sid", ctypes.c_void_p), ("Attributes", wintypes.DWORD)]
+
+
+_advapi32.GetTokenInformation.argtypes = [wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p,
+                                          wintypes.DWORD, ctypes.POINTER(wintypes.DWORD)]
+_advapi32.LookupAccountSidW.argtypes = [wintypes.LPCWSTR, ctypes.c_void_p, wintypes.LPWSTR,
+                                        ctypes.POINTER(wintypes.DWORD), wintypes.LPWSTR,
+                                        ctypes.POINTER(wintypes.DWORD), ctypes.POINTER(ctypes.c_int)]
+
+
+def _groupes_du_jeton(jeton: wintypes.HANDLE) -> list[str]:
+    TOKEN_GROUPS_CLASSE, SE_GROUP_LOGON_ID = 2, 0xC0000000
+    taille = wintypes.DWORD()
+    _advapi32.GetTokenInformation(jeton, TOKEN_GROUPS_CLASSE, None, 0, ctypes.byref(taille))
+    tampon = ctypes.create_string_buffer(taille.value)
+    if not _advapi32.GetTokenInformation(jeton, TOKEN_GROUPS_CLASSE, tampon, taille, ctypes.byref(taille)):
+        raise _erreur(ctypes.get_last_error())
+    # TOKEN_GROUPS : un DWORD (nombre), puis le tableau aligné de SID_AND_ATTRIBUTES.
+    nombre = wintypes.DWORD.from_buffer(tampon).value
+    decalage = ctypes.alignment(_SID_AND_ATTRIBUTES)
+    entrees = (_SID_AND_ATTRIBUTES * nombre).from_buffer(tampon, decalage)
+    groupes = []
+    for entree in entrees:
+        if entree.Attributes & SE_GROUP_LOGON_ID == SE_GROUP_LOGON_ID:
+            continue
+        nom, domaine = ctypes.create_unicode_buffer(256), ctypes.create_unicode_buffer(256)
+        t_nom, t_domaine, usage = wintypes.DWORD(256), wintypes.DWORD(256), ctypes.c_int()
+        if _advapi32.LookupAccountSidW(None, entree.Sid, nom, ctypes.byref(t_nom), domaine,
+                                       ctypes.byref(t_domaine), ctypes.byref(usage)):
+            groupes.append(nom.value)   # SID inconnu (groupe supprimé...) : ignoré
+    return groupes
+
+
+def ouvrir_session(utilisateur: str, domaine: str, mot_de_passe: str) -> list[str]:
+    """Vérifie le compte et renvoie ses groupes de sécurité, imbrications comprises."""
+    jeton = _logon(utilisateur, domaine, mot_de_passe)
+    try:
+        return _groupes_du_jeton(jeton)
+    finally:
+        _kernel32.CloseHandle(jeton)
 
 
 # --- RunAs ---
