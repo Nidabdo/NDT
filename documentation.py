@@ -7,6 +7,7 @@ import uuid
 import tkinter as tk
 from tkinter import ttk
 from diagnostic_form import RoundedPanel, SearchBox, rounded
+from article_images import ImageDocument, ArticleImageEditor, validate_images
 
 SYSTEMS=('Tous','Windows','Linux')
 
@@ -24,6 +25,7 @@ def load_articles(path):
         if not article['id'] or article['id'] in ids or article['system'] not in SYSTEMS:
             raise ValueError('Un article de documentation est invalide.')
         ids.add(article['id'])
+        validate_images(article)
     return articles
 
 
@@ -202,6 +204,7 @@ class Documentation(ttk.Frame):
         sb.pack(side='right',fill='y');self.content.pack(fill='both',expand=True)
         self.content.configure(yscrollcommand=sb.set,state='disabled')
         self.content._documentation_content=True
+        self.image_document=ImageDocument(self.content)
         app.paint(self.content)
         self.listbox.bind('<<ArticleSelect>>',self.select)
         self.query.trace_add('write',lambda *_:self.refresh())
@@ -238,8 +241,7 @@ class Documentation(ttk.Frame):
         self.selected_id=article['id'] if article else None
         self.title.configure(text=article['title'] if article else 'Aucun article à afficher')
         self.metadata.configure(text=' · '.join(filter(None,[article['system'],article['category']])) if article else '')
-        self.content.configure(state='normal');self.content.delete('1.0','end')
-        self.content.insert('1.0',article['content'] if article else ('Aucun résultat pour cette recherche.\n\nEssayez un autre mot-clé ou choisissez « Tous les systèmes ».' if self.articles else 'Votre bibliothèque est prête.\n\nLa coordination peut ajouter les premières procédures depuis son espace.'))
+        self.image_document.load(article['content'] if article else ('Aucun résultat pour cette recherche.\n\nEssayez un autre mot-clé ou choisissez « Tous les systèmes ».' if self.articles else 'Votre bibliothèque est prête.\n\nLa coordination peut ajouter les premières procédures depuis son espace.'),article.get('images',[]) if article else [])
         self.content.configure(state='disabled');self.content.yview_moveto(0)
 
     def can_edit(self):
@@ -258,32 +260,39 @@ class Documentation(ttk.Frame):
 
     def edit_article(self,article=None):
         if not self.can_edit():return
-        original=article or dict(id=uuid.uuid4().hex,title='',system='Tous',category='',keywords='',content='')
+        original=dict(article,images=article.get('images',[])) if article else dict(id=uuid.uuid4().hex,title='',system='Tous',category='',keywords='',content='',images=[])
         win=tk.Toplevel(self.app);win.title('Modifier l’article' if article else 'Nouvel article');win.transient(self.app);win.grab_set()
-        win.geometry('760x660');win.minsize(600,520)
+        win.geometry('820x740');win.minsize(640,600)
         body=ttk.Frame(win,padding=22);body.pack(fill='both',expand=True)
         actions=ttk.Frame(body);actions.pack(side='bottom',fill='x',pady=(14,0))
         fields={}
-        for label,key in [('Titre','title'),('Catégorie (ex. Réseau, Impression)','category'),('Mots-clés (ex. DNS, connexion, imprimante)','keywords')]:
-            ttk.Label(body,text=label).pack(anchor='w')
-            entry=ttk.Entry(body);entry.insert(0,original[key]);entry.pack(fill='x',pady=(4,10));fields[key]=entry
-        ttk.Label(body,text='Système concerné').pack(anchor='w')
+        meta=ttk.Frame(body);meta.pack(fill='x');meta.columnconfigure(0,weight=1);meta.columnconfigure(1,weight=1)
+        for label,key,row,col,span in [('Titre','title',0,0,2),('Catégorie','category',2,0,1),('Mots-clés','keywords',2,1,1)]:
+            ttk.Label(meta,text=label).grid(row=row,column=col,columnspan=span,sticky='w')
+            entry=ttk.Entry(meta);entry.insert(0,original[key]);entry.grid(row=row+1,column=col,columnspan=span,sticky='ew',pady=(4,8),padx=(0,8) if span==1 and col==0 else 0);fields[key]=entry
+        ttk.Label(meta,text='Système concerné').grid(row=4,column=0,sticky='w')
         system=tk.StringVar(value=original['system'])
-        ttk.Combobox(body,textvariable=system,values=SYSTEMS,state='readonly').pack(fill='x',pady=(4,10))
+        ttk.Combobox(meta,textvariable=system,values=SYSTEMS,state='readonly').grid(row=5,column=0,columnspan=2,sticky='ew',pady=(4,10))
+        toolbar=ttk.Frame(body);toolbar.pack(fill='x',pady=(0,6))
+        ttk.Label(body,text='Ctrl+V pour coller · Cliquez sur une image puis tirez un coin pour la redimensionner.',wraplength=570).pack(anchor='w',pady=(0,8))
         ttk.Label(body,text='Procédure / manipulations à effectuer').pack(anchor='w')
         area=ttk.Frame(body);area.pack(fill='both',expand=True,pady=(4,0))
         content=self.app.make_text(area,height=4,width=1)
         sb=ttk.Scrollbar(area,command=content.yview);sb.pack(side='right',fill='y')
-        content.pack(fill='both',expand=True);content.configure(yscrollcommand=sb.set);content.insert('1.0',original['content'])
-        def values():return dict(original,**{k:w.get().strip() for k,w in fields.items()},system=system.get(),content=content.get('1.0','end').rstrip('\n'))
+        content.pack(fill='both',expand=True);content.configure(yscrollcommand=sb.set)
+        image_editor=ArticleImageEditor(content,toolbar,self.app,win)
+        image_editor.load(original['content'],original['images']);win.image_editor=image_editor
+        def values():
+            text,images=image_editor.serialize()
+            return dict(original,**{k:w.get().strip() for k,w in fields.items()},system=system.get(),content=text,images=images)
         def close():
             if values()!=original and not self.app.confirm('Modifications non enregistrées','Fermer cet article sans enregistrer ?',yes='Fermer',no='Continuer'):
                 win.grab_set();return
             win.destroy()
         def save():
             updated=values()
-            if not updated['title'] or not updated['content'].strip():
-                self.app.warn('Article incomplet','Saisissez un titre et le contenu de la procédure.');win.grab_set();return
+            if not updated['title'] or not (updated['content'].strip() or updated['images']):
+                self.app.warn('Article incomplet','Saisissez un titre et ajoutez du texte ou une image.');win.grab_set();return
             articles=[updated if a['id']==updated['id'] else a for a in self.articles]
             if article is None:articles.append(updated)
             if self.persist(articles):

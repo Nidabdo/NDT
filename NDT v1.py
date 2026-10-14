@@ -4,7 +4,8 @@ NDT v1 - Outil de diagnostic (application de bureau, sans navigateur)
 Lancer en Python :   python "NDT v1.py"
 Créer l'exécutable : pyinstaller --onefile --noconsole --name NDT_v1 "NDT v1.py"
 
-Aucune bibliothèque externe n'est nécessaire (tkinter est fourni avec Python).
+Installer les dépendances : python -m pip install -r requirements.txt
+Pillow gère les images de documentation ; tkinter est fourni avec Python.
 Fichiers créés à côté du programme : questions.json (questions + modèle)
 et settings.json (thème clair/sombre).
 """
@@ -239,7 +240,7 @@ class ChoiceCard(tk.Canvas):
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("NDT 1.10 — Le diagnostic, guidé")
+        self.title("NDT 1.12 — Le diagnostic, guidé")
         self.geometry("1180x800")
         self.minsize(800, 600)
 
@@ -296,7 +297,7 @@ class App(tk.Tk):
                              command=lambda k=key: self.navigate(k))
             btn.pack(fill="x", pady=5)
             self.nav_buttons[key] = btn
-        ttk.Label(nav_body, text="NDT 1.10\nESPACE ASSISTANCE",
+        ttk.Label(nav_body, text="NDT 1.12\nESPACE ASSISTANCE",
                   style="Sidebar.Muted.TLabel", justify="left", wraplength=140).pack(side="bottom", anchor="w", padx=10)
         self.workspace = ttk.Frame(self)
         self.workspace.pack(side="left", fill="both", expand=True)
