@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 import outils_poste
 from poste_validation import SaisieInvalide, valider_hote
+import droits
 from test_routes import ndt
 
 
@@ -42,7 +43,7 @@ class EcranTest(unittest.TestCase):
             patcher = patch.object(cible, valeur, Path(temp.name) / f"{valeur}.json")
             patcher.start()
             self.addCleanup(patcher.stop)
-        self.app = ndt.App()
+        self.app = ndt.App(session=droits.session_bypass())
         self.app.attributes("-alpha", 0)
         self.addCleanup(self.app.destroy)
 

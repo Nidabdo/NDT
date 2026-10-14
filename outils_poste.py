@@ -92,8 +92,9 @@ def relancer_cmrc(hote, compte):
 
 
 class OutilsPoste(ttk.Frame):
-    """Écran « Outils poste ». Le compte blanc est gardé sur l'application (app.compte_poste),
-    en mémoire uniquement, pour survivre aux changements d'écran."""
+    """Écran « Outils poste ». Le compte utilisé est celui saisi au lancement de NDT
+    (app.compte_poste, en mémoire uniquement). En mode bypass, il n'y en a pas : on peut
+    alors se connecter ici, ponctuellement."""
 
     def __init__(self, parent, app):
         super().__init__(parent)
@@ -149,8 +150,17 @@ class OutilsPoste(ttk.Frame):
     def compte(self):
         return getattr(self.app, "compte_poste", None)
 
+    @property
+    def compte_du_lancement(self):
+        session = getattr(self.app, "session", None)
+        return session is not None and not session.bypass
+
     def _maj_compte(self):
-        if self.compte:
+        if self.compte_du_lancement:
+            self.var_compte.set(f"Actions exécutées en tant que {DOMAINE}\\{self.compte[0]}, "
+                                "le compte saisi à l'ouverture de NDT.")
+            self.bouton_connexion.pack_forget()
+        elif self.compte:
             self.var_compte.set(f"Connecté en tant que {DOMAINE}\\{self.compte[0]}. "
                                 "Utilisé pour la prise en main, C$ / D$ et le service CmRcService.")
             self.bouton_connexion.configure(text="Se déconnecter")

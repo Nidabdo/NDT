@@ -17,7 +17,9 @@ import tkinter as tk
 import unicodedata
 import uuid
 from pathlib import Path
-from tkinter import ttk
+from tkinter import messagebox, ttk
+import droits
+from connexion import demander_session
 from parcours_editor import ParcoursEditor
 from coordination_auth import verify_coordinateur, save_coordinateur_password
 from documentation import Documentation, ArticleList
@@ -238,8 +240,11 @@ class ChoiceCard(tk.Canvas):
 
 # ---------- Application ----------
 class App(tk.Tk):
-    def __init__(self):
+    def __init__(self, session=None):
+        """`session` : droits.Session déjà ouverte (tests) ; sinon la fenêtre de connexion s'affiche."""
         super().__init__()
+        self.withdraw()   # rien n'apparaît avant la connexion
+        self.session = None
         self.title("NDT 1.12 — Le diagnostic, guidé")
         self.geometry("1180x800")
         self.minsize(800, 600)
@@ -279,7 +284,46 @@ class App(tk.Tk):
         self.bind("<Key>", self.on_key)
         self.bind("<Control-Shift-A>", lambda _e: self.open_admin())
 
+        if session is None:
+            try:
+                droits.verifier_config()
+            except droits.ConfigInvalide as err:
+                messagebox.showerror("Configuration des accès invalide",
+                                     f"Le fichier acces.py contient une erreur :\n\n{err}")
+                self.destroy()
+                return
+            session = demander_session(self)
+            if session is None:   # « Quitter »
+                self.destroy()
+                return
+        self.session = session
+        # Le compte saisi au lancement sert aussi aux outils poste (PMAD, C$...).
+        self.compte_poste = (session.login, session.mot_de_passe) if session.mot_de_passe else None
+        self.appliquer_droits()
+        self.deiconify()
         self.show_home()
+
+    # ===== Droits =====
+    def autorise(self, cle):
+        return self.session is not None and self.session.autorise(cle)
+
+    def appliquer_droits(self):
+        """Masque les écrans non autorisés et affiche qui est connecté."""
+        for boutons in (self.nav_buttons, self.compact_nav_buttons):
+            for cle, bouton in boutons.items():
+                if not self.autorise(cle):
+                    bouton.pack_forget()
+        if not self.autorise("admin"):
+            self.coordination_btn.pack_forget()
+        s = self.session
+        if s.bypass:
+            self.title(self.title() + "  —  MODE BYPASS")
+            ttk.Label(self.top_bar, text="MODE BYPASS", style="Bypass.TLabel").pack(side="left", padx=(16, 0))
+            texte = "Hors domaine\nTous les accès"
+        else:
+            texte = f"{s.domaine}\\{s.login}\n{' + '.join(s.profils)}"
+        ttk.Label(self.nav_body, text=texte, style="Sidebar.Muted.TLabel", justify="left",
+                  wraplength=150).pack(side="bottom", anchor="w", padx=10, pady=(0, 12))
 
     # ===== Thème =====
     def build_header(self):
@@ -289,6 +333,7 @@ class App(tk.Tk):
         self.sidebar = sidebar
         sidebar.pack(side="left", fill="y",padx=(12,0),pady=12)
         nav_body=sidebar.body
+        self.nav_body = nav_body
         ttk.Label(nav_body, text="NDT.", style="Sidebar.Brand.TLabel").pack(anchor="w", padx=6,pady=(6,0))
         ttk.Label(nav_body, text="Le diagnostic, guidé.", style="Sidebar.Muted.TLabel").pack(anchor="w", padx=6, pady=(0, 38))
         self.nav_buttons = {}
@@ -303,6 +348,7 @@ class App(tk.Tk):
         self.workspace.pack(side="left", fill="both", expand=True)
         bar = ttk.Frame(self.workspace, padding=(24, 10))
         bar.pack(fill="x")
+        self.top_bar = bar
         self.breadcrumb = tk.StringVar(value="ESPACE ASSISTANCE  /  ACCUEIL")
         ttk.Label(bar, textvariable=self.breadcrumb, style="Muted.TLabel").pack(side="left")
         self.theme_btn = ttk.Button(bar, style="Ghost.TButton",
@@ -315,8 +361,9 @@ class App(tk.Tk):
             button.pack(side='left',padx=(0,8));self.compact_nav_buttons[key]=button
         footer = ttk.Frame(self.workspace, padding=(32, 0, 24, 16))
         footer.pack(side="bottom", fill="x")
-        ttk.Button(footer, text="Coordination", style="Admin.TButton",
-                   command=self.open_admin).pack(side="right")
+        self.coordination_btn = ttk.Button(footer, text="Coordination", style="Admin.TButton",
+                                           command=self.open_admin)
+        self.coordination_btn.pack(side="right")
 
     def responsive_layout(self, event):
         if event.widget != self or not hasattr(self, 'container'):
@@ -339,7 +386,7 @@ class App(tk.Tk):
             button.configure(style='Nav.Active.TButton' if key==screen else 'Nav.TButton')
 
     def navigate(self, target):
-        if target == getattr(self, "screen", None):
+        if target == getattr(self, "screen", None) or not self.autorise(target):
             return
         if getattr(self, "screen", None) == "admin":
             self.leave_admin()
@@ -433,6 +480,8 @@ class App(tk.Tk):
         s.configure("Sidebar.TFrame", background=p['sidebar'])
         s.configure("Sidebar.Brand.TLabel", background=p['sidebar'], foreground="#65d8c6", font=(FONT, 30, "bold"))
         s.configure("Sidebar.Muted.TLabel", background=p['sidebar'], foreground="#b5c7d5", font=(FONT, 10))
+        s.configure("Bypass.TLabel", background="#b42331", foreground="#ffffff",
+                    font=(FONT, 9, "bold"), padding=(10, 3))
         s.configure("Eyebrow.TLabel", background=p["bg"], foreground=p["accent"], font=(FONT, 10, "bold"))
         button("Sidebar.TButton", p['sidebar'], "#bfd0de", p['sidebar_hover'], padding=(14, 12))
         button("Sidebar.Active.TButton", p['sidebar_select'], "#ffffff", p['sidebar_hover'], padding=(14, 12),indicator='#70ddc9')
@@ -705,12 +754,21 @@ class App(tk.Tk):
         tiles.pack(fill="x")
         tiles.columnconfigure(0, weight=1, uniform='home')
         tiles.columnconfigure(1, weight=1, uniform='home')
-        first=self.tile(tiles, 0, "Diagnostic",
-                  "Décrivez votre incident et obtenez une synthèse prête à partager.",
-                  "Lancer un diagnostic  →", self.start_user)
-        second=self.tile(tiles, 1, "Documentation",
-                  "Retrouvez les procédures et les manipulations utiles à votre intervention.",
-                  "Consulter les procédures  →", self.show_documentation, primary=False)
+        cartes = [carte for carte in (
+            ("question", "Diagnostic", "Décrivez votre incident et obtenez une synthèse prête à partager.",
+             "Lancer un diagnostic  →", self.start_user),
+            ("documentation", "Documentation",
+             "Retrouvez les procédures et les manipulations utiles à votre intervention.",
+             "Consulter les procédures  →", self.show_documentation),
+        ) if self.autorise(carte[0])]
+        if not cartes:
+            ttk.Label(tiles, text="Aucun module n'est attribué à votre compte.",
+                      style="Muted.TLabel").grid(row=0, column=0, sticky="w")
+            return
+        panneaux = [self.tile(tiles, col, *carte[1:], primary=col == 0) for col, carte in enumerate(cartes)]
+        if len(panneaux) < 2:
+            return
+        first, second = panneaux
         def reflow(event):
             narrow=event.width<650
             tiles.columnconfigure(1,weight=0 if narrow else 1)
@@ -1023,7 +1081,7 @@ class App(tk.Tk):
 
     # ===== Partie administrateur =====
     def open_admin(self):
-        if getattr(self, "screen", None) == "admin":
+        if getattr(self, "screen", None) == "admin" or not self.autorise("admin"):
             return "break"
         credentials = self.ask_password()
         if credentials is None:
@@ -1544,4 +1602,6 @@ class App(tk.Tk):
 
 
 if __name__ == "__main__":
-    App().mainloop()
+    app = App()
+    if app.session is not None:
+        app.mainloop()

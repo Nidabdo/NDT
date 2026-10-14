@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 from tkinter import ttk
 from unittest.mock import patch
+import droits
 from test_routes import ndt, RoutesTest
 
 
@@ -18,7 +19,7 @@ class RouteUITest(unittest.TestCase):
     def test_seven_question_cards_fit_small_window(self):
         with tempfile.TemporaryDirectory() as directory:
             with patch.object(ndt,'SETTINGS_FILE',Path(directory)/'settings.json'):
-                app=ndt.App();app.attributes('-alpha',0)
+                app=ndt.App(session=droits.session_bypass());app.attributes('-alpha',0)
                 try:
                     app.geometry('800x600')
                     app.questions=ndt.normalize([
@@ -41,7 +42,7 @@ class RouteUITest(unittest.TestCase):
     def test_result_actions_stay_inside_small_window(self):
         with tempfile.TemporaryDirectory() as directory:
             with patch.object(ndt,'SETTINGS_FILE',Path(directory)/'settings.json'):
-                app=ndt.App()
+                app=ndt.App(session=droits.session_bypass())
                 app.attributes('-alpha',0)
                 try:
                     app.questions=ndt.normalize([dict(id='q',text='Description',type='free')])
@@ -69,7 +70,7 @@ class RouteUITest(unittest.TestCase):
     def test_six_fields_fit_typical_form_heights(self):
         with tempfile.TemporaryDirectory() as directory:
             with patch.object(ndt, 'SETTINGS_FILE', Path(directory) / 'settings.json'):
-                app=ndt.App();app.withdraw()
+                app=ndt.App(session=droits.session_bypass());app.withdraw()
                 try:
                     app.questions=ndt.normalize([
                         dict(id='os',text='Poste',type='choice',choices=['Linux','Windows'])
@@ -95,7 +96,7 @@ class RouteUITest(unittest.TestCase):
             with patch.object(ndt, "DATA_FILE", Path(directory) / "questions.json"), \
                  patch.object(ndt, "SETTINGS_FILE", Path(directory) / "settings.json"):
                 ndt.save_data(fixture.questions, "{reponses}")
-                app = ndt.App()
+                app = ndt.App(session=droits.session_bypass())
                 app.withdraw()
                 try:
                     app.questions = ndt.load_data()["questions"]

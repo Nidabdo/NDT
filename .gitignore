@@ -1,0 +1,11 @@
+# Fichiers générés automatiquement (à ne pas versionner)
+__pycache__/
+*.pyc
+build/
+venv/
+
+# Mot de passe coordinateur (empreinte locale, propre à chaque poste)
+coordination_auth.json
+
+# Outils locaux
+.remember/

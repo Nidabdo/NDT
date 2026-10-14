@@ -5,6 +5,7 @@ from pathlib import Path
 from tkinter import ttk
 from unittest.mock import patch
 from documentation import load_articles, save_articles, search_articles
+import droits
 from test_routes import ndt
 
 
@@ -42,7 +43,7 @@ class DocumentationTest(unittest.TestCase):
 
     def test_coordinator_crud_and_public_reader(self):
         with patch.object(ndt,'DOCUMENTATION_FILE',self.path),patch.object(ndt,'SETTINGS_FILE',Path(self.temp.name)/'settings.json'):
-            app=ndt.App();app.withdraw()
+            app=ndt.App(session=droits.session_bypass());app.withdraw()
             try:
                 app.session_user='coordinateur';app.show_admin()
                 editor=app.documentation_editor
@@ -73,7 +74,7 @@ class DocumentationTest(unittest.TestCase):
     def test_reader_and_home_fit_window_and_theme(self):
         save_articles(self.path,self.articles)
         with patch.object(ndt,'DOCUMENTATION_FILE',self.path),patch.object(ndt,'SETTINGS_FILE',Path(self.temp.name)/'settings.json'):
-            app=ndt.App();app.attributes('-alpha',0)
+            app=ndt.App(session=droits.session_bypass());app.attributes('-alpha',0)
             try:
                 for theme in ('light','dark'):
                     app.theme=theme;app.p=ndt.PALETTES[theme];app.apply_theme()
