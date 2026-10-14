@@ -1,13 +1,12 @@
 """Bibliothèque locale de procédures consultable et administrable."""
 import json
-import os
-import tempfile
 import unicodedata
 import uuid
 import tkinter as tk
 from tkinter import ttk
 from diagnostic_form import RoundedPanel, SearchBox, rounded
 from article_images import ImageDocument, ArticleImageEditor, validate_images
+from stockage import ecrire_json_atomique
 
 SYSTEMS=('Tous','Windows','Linux')
 
@@ -30,14 +29,7 @@ def load_articles(path):
 
 
 def save_articles(path,articles):
-    temporary=None
-    try:
-        with tempfile.NamedTemporaryFile(mode='w',encoding='utf-8',dir=path.parent,delete=False) as file:
-            temporary=file.name
-            json.dump({'version':1,'articles':articles},file,ensure_ascii=False,indent=2)
-        os.replace(temporary,path)
-    finally:
-        if temporary and os.path.exists(temporary):os.unlink(temporary)
+    ecrire_json_atomique(path,{'version':1,'articles':articles})
 
 
 def folded(text):

@@ -5,7 +5,7 @@ a = Analysis(
     ['NDT v1.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=[('img_cafew', 'img_cafew')],   # logos de l'accueil Pause Cafew
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

@@ -11,23 +11,28 @@
 #    - ne pas toucher aux accolades { } ni aux crochets [ ]
 #
 #  Écrans possibles :
-#    "accueil"        page d'accueil (toujours visible, même si on l'oublie)
+#    "accueil"        Pause Cafew : outils, équipes, recherche SMAX (toujours visible)
 #    "diagnostic"     questionnaire de diagnostic
 #    "documentation"  procédures
 #    "outils"         outils poste : prise en main, ping, C$ / D$...
+#    "scripts"        scripts du bureau technique (consulter, remplir, copier)
 #    "coordination"   espace de coordination (demande aussi son mot de passe)
+#
+#  Droits possibles (ils se placent dans un profil comme un écran) :
+#    "scripts_edition"  ajouter, modifier et supprimer des scripts
 # =====================================================================
 
 
 # ---------------------------------------------------------------------
-#  1. LES PROFILS : un nom de profil, puis la liste des écrans visibles.
+#  1. LES PROFILS : un nom de profil, puis la liste des écrans et droits.
 #     On peut en ajouter, en retirer ou les renommer.
 # ---------------------------------------------------------------------
 PROFILS = {
     "Minimal":    ["accueil", "diagnostic"],
     "Technicien": ["accueil", "diagnostic", "documentation"],
-    "Support":    ["accueil", "diagnostic", "documentation", "outils"],
-    "Complet":    ["accueil", "diagnostic", "documentation", "outils", "coordination"],
+    "Support":    ["accueil", "diagnostic", "documentation", "outils", "scripts"],
+    "Complet":    ["accueil", "diagnostic", "documentation", "outils", "scripts",
+                   "scripts_edition", "coordination"],
 }
 
 
@@ -56,7 +61,7 @@ PROFIL_PAR_DEFAUT = "Minimal"
 
 
 # ---------------------------------------------------------------------
-#  4. CASE « BYPASS » sur la fenêtre de connexion : donne TOUS les écrans
+#  4. CASE « BYPASS » sur la fenêtre de connexion : donne TOUS les écrans et droits
 #     sans compte AD, pour travailler hors du domaine INTRA.
 #     Mettre False pour la mise en production : la case disparaît.
 # ---------------------------------------------------------------------

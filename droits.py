@@ -3,10 +3,12 @@ from dataclasses import dataclass, field
 
 import acces
 
-ECRANS = ("accueil", "diagnostic", "documentation", "outils", "coordination")
+ECRANS = ("accueil", "diagnostic", "documentation", "outils", "scripts", "coordination")
+# Droits qui ne sont pas des écrans : ils débloquent une action dans un écran.
+DROITS = ("scripts_edition",)
 # Clés de navigation de l'application -> écran de acces.py
 ECRAN_PAR_CLE = {"home": "accueil", "question": "diagnostic", "documentation": "documentation",
-                 "outils": "outils", "admin": "coordination"}
+                 "outils": "outils", "scripts": "scripts", "admin": "coordination"}
 
 
 class ConfigInvalide(ValueError):
@@ -19,12 +21,12 @@ class Session:
     domaine: str = ""
     mot_de_passe: str | None = field(default=None, repr=False)   # en mémoire uniquement
     groupes: tuple = ()
-    ecrans: frozenset = frozenset()
+    ecrans: frozenset = frozenset()   # écrans et droits accordés
     profils: tuple = ()
     bypass: bool = False
 
     def autorise(self, cle):
-        """`cle` : clé de navigation (« home »…) ou nom d'écran (« accueil »…)."""
+        """`cle` : clé de navigation (« home »…), nom d'écran (« accueil »…) ou droit."""
         return ECRAN_PAR_CLE.get(cle, cle) in self.ecrans
 
 
@@ -46,9 +48,10 @@ def verifier_config(config=acces):
             raise ConfigInvalide(f"Dans PROFILS, la ligne {nom!r} est mal écrite : "
                                  'attendu "Nom": ["accueil", "diagnostic", ...],')
         for ecran in ecrans:
-            if ecran not in ECRANS:
-                raise ConfigInvalide(f'Dans PROFILS, le profil "{nom}" contient l\'écran {ecran!r}, '
-                                     f"qui n'existe pas.\nÉcrans possibles : {', '.join(ECRANS)}.")
+            if ecran not in ECRANS + DROITS:
+                raise ConfigInvalide(f'Dans PROFILS, le profil "{nom}" contient {ecran!r}, '
+                                     f"qui n'existe pas.\nÉcrans possibles : {', '.join(ECRANS)}.\n"
+                                     f"Droits possibles : {', '.join(DROITS)}.")
     connus = ", ".join(profils)
     utilisateurs = getattr(config, "UTILISATEURS", None)
     if not isinstance(utilisateurs, dict):
@@ -90,5 +93,5 @@ def session_ad(login, domaine, mot_de_passe, groupes, config=acces):
 
 
 def session_bypass():
-    """Tous les écrans, sans compte AD (développement hors domaine)."""
-    return Session(login="", ecrans=frozenset(ECRANS), profils=("Bypass",), bypass=True)
+    """Tous les écrans et tous les droits, sans compte AD (développement hors domaine)."""
+    return Session(login="", ecrans=frozenset(ECRANS + DROITS), profils=("Bypass",), bypass=True)
