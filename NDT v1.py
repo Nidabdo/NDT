@@ -20,7 +20,8 @@ from tkinter import ttk
 from parcours_editor import ParcoursEditor
 from coordination_auth import verify_coordinateur, save_coordinateur_password
 from documentation import Documentation, ArticleList
-from diagnostic_form import DiagnosticForm, RoundedField, RoundedPanel, SearchBox, rounded, style_rounded_button
+from outils_poste import OutilsPoste
+from diagnostic_form import DiagnosticForm, RoundedField, RoundedPanel, SearchBox, cercle, rounded, style_rounded_button
 
 # Compte personnel, non affiché dans l'interface de connexion.
 ADMIN_PASSWORD = "admin"
@@ -42,6 +43,8 @@ DEFAULT_TEMPLATE = "RÉSULTAT DU DIAGNOSTIC\n\n{reponses}"
 RESERVED_TAGS = {"reponses"}
 NOT_ANSWERED = ""
 FONT = "Segoe UI"
+NAV_ITEMS = (("Accueil", "home"), ("Diagnostic", "question"),
+             ("Documentation", "documentation"), ("Outils poste", "outils"))
 
 PALETTES = {
     "light": {
@@ -218,9 +221,9 @@ class ChoiceCard(tk.Canvas):
         edge = p["accent"] if selected or self.focus_get() == self else p["border"]
         r, x, y = 16, w - 3, h - 3
         rounded(self,3,3,w-6,h-6,22,fill=fill,outline=edge,width=2)
-        self.create_oval(19, 25, 35, 41, outline=p["accent"] if selected else p["muted"], width=2)
+        cercle(self, 27, 33, 8, outline=p["accent"] if selected else p["muted"], width=2)
         if selected:
-            self.create_oval(23, 29, 31, 37, fill=p["accent"], outline="")
+            cercle(self, 27, 33, 4, fill=p["accent"])
         text_id = self.create_text(49, 20, text=self.text, anchor="nw", width=max(w-70, 20),
                                   font=(FONT, 13, "bold"), fill=p["fg"])
         bounds = self.bbox(text_id)
@@ -288,7 +291,7 @@ class App(tk.Tk):
         ttk.Label(nav_body, text="NDT.", style="Sidebar.Brand.TLabel").pack(anchor="w", padx=6,pady=(6,0))
         ttk.Label(nav_body, text="Le diagnostic, guidé.", style="Sidebar.Muted.TLabel").pack(anchor="w", padx=6, pady=(0, 38))
         self.nav_buttons = {}
-        for label, key in (("Accueil", "home"), ("Diagnostic", "question"), ("Documentation", "documentation")):
+        for label, key in NAV_ITEMS:
             btn = ttk.Button(nav_body, text=label, style="Sidebar.TButton",
                              command=lambda k=key: self.navigate(k))
             btn.pack(fill="x", pady=5)
@@ -306,7 +309,7 @@ class App(tk.Tk):
         self.theme_btn.pack(side="right")
         self.compact_nav = ttk.Frame(self.workspace, padding=(18, 0))
         self.compact_nav_buttons={}
-        for label, key in (("Accueil", "home"), ("Diagnostic", "question"), ("Documentation", "documentation")):
+        for label, key in NAV_ITEMS:
             button=ttk.Button(self.compact_nav, text=label,style='Nav.TButton',command=lambda k=key:self.navigate(k))
             button.pack(side='left',padx=(0,8));self.compact_nav_buttons[key]=button
         footer = ttk.Frame(self.workspace, padding=(32, 0, 24, 16))
@@ -344,7 +347,7 @@ class App(tk.Tk):
         elif self.mode in ("question", "form"):
             if not self.confirm("Quitter le diagnostic", "Quitter ce parcours ? Vos réponses seront perdues.", yes="Quitter", no="Continuer"):
                 return
-        {"home": self.show_home, "question": self.start_user, "admin": self.open_admin, "documentation":self.show_documentation}[target]()
+        {"home": self.show_home, "question": self.start_user, "admin": self.open_admin, "documentation":self.show_documentation, "outils": self.show_outils}[target]()
 
     def show_documentation(self):
         self.clear()
@@ -353,6 +356,15 @@ class App(tk.Tk):
         ttk.Label(self.container,text='Documentation',style='Title.TLabel').pack(anchor='w',pady=(0,8))
         self.documentation = Documentation(self.container,self,DOCUMENTATION_FILE)
         self.documentation.pack(fill='both',expand=True)
+
+    def show_outils(self):
+        self.clear()
+        self.session_user = None
+        self.set_screen('outils', 'Outils poste')
+        ttk.Label(self.container, text='Outils poste', style='Title.TLabel').pack(anchor='w', pady=(0, 8))
+        self.outils_poste = OutilsPoste(self.container, self)
+        self.outils_poste.pack(fill='both', expand=True)
+        self.outils_poste.recherche.entry.focus_set()
 
     def apply_theme(self):
         p, s = self.p, self.style
@@ -388,7 +400,9 @@ class App(tk.Tk):
                     foreground=p["accent"], font=(FONT, 16, "bold"))
 
         # Boutons
-        def button(name, bg, fg, hover, font=(FONT, 10, "bold"), padding=(16, 9),indicator=None):
+        couleurs_boutons = {}
+
+        def button(name, bg, fg, hover, font=(FONT, 10, "bold"), padding=(16, 9),indicator=None, outline=None):
             s.configure(name, background=bg, foreground=fg, bordercolor=bg,
                         lightcolor=bg, darkcolor=bg, focuscolor=bg,
                         relief="flat", borderwidth=1, padding=padding, font=font)
@@ -396,14 +410,15 @@ class App(tk.Tk):
                   bordercolor=[("active", hover), ("pressed", hover)],
                   lightcolor=[("active", hover), ("pressed", hover)],
                   darkcolor=[("active", hover), ("pressed", hover)])
-            style_rounded_button(self, name, bg, hover,indicator)
+            couleurs_boutons[name] = (bg, hover, indicator, outline)
+            style_rounded_button(self, name, bg, hover,indicator, outline)
             # Le fond derrière les coins transparents doit rester celui du panneau.
             corner = p['sidebar'] if name.startswith('Sidebar.') else p['bg']
             s.configure(name, background=corner)
             s.map(name, background=[('active', corner), ('pressed', corner)])
-        button("TButton", p["btn"], p["fg"], p["btn_hover"])
+        button("TButton", p["btn"], p["fg"], p["btn_hover"], outline=p["border"])
         button("Accent.TButton", p["accent"], p["accent_fg"], p["accent_hover"])
-        button("Danger.TButton", p["btn"], p["danger"], p["btn_hover"])
+        button("Danger.TButton", p["btn"], p["danger"], p["btn_hover"], outline=p["border"])
         button("Admin.TButton", "#b42331", "#ffffff", "#991c29", padding=(14, 7))
         button("Ghost.TButton", p["bg"], p["muted"], p["select"],
                padding=(12, 6))
@@ -411,6 +426,9 @@ class App(tk.Tk):
         for base in ('TButton', 'Accent.TButton', 'Danger.TButton', 'Ghost.TButton'):
             s.configure('Card.' + base, background=p['surface'])
             s.map('Card.' + base, background=[('active', p['surface']), ('pressed', p['surface'])])
+            if base != 'Ghost.TButton':   # Card.Ghost a déjà son propre style
+                # Images propres aux cartes : les coins lissés se fondent dans la surface.
+                style_rounded_button(self, 'Card.' + base, *couleurs_boutons[base])
         s.configure("Sidebar.TFrame", background=p['sidebar'])
         s.configure("Sidebar.Brand.TLabel", background=p['sidebar'], foreground="#65d8c6", font=(FONT, 30, "bold"))
         s.configure("Sidebar.Muted.TLabel", background=p['sidebar'], foreground="#b5c7d5", font=(FONT, 10))

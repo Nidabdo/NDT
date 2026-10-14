@@ -2,6 +2,7 @@
 import tkinter as tk
 import math
 from tkinter import ttk
+from rendu import cercle, rounded, style_rounded_button  # noqa: F401 (réexportés)
 
 
 def visible_path(questions, answers, resolve, skipped=()):
@@ -19,40 +20,6 @@ def visible_path(questions, answers, resolve, skipped=()):
         else:
             current=resolve(questions,current,value,path)
     return path
-
-
-def style_rounded_button(app,name,bg,hover,indicator=None):
-    if not hasattr(app,'button_images'):app.button_images={}
-    element=name.replace('.','')+'.rounded'
-    images=app.button_images.get(name)
-    if images is None:
-        images=[tk.PhotoImage(master=app,width=40,height=40) for _ in range(3)]
-        app.button_images[name]=images
-        app.style.element_create(element,'image',images[0],('pressed',images[1]),('active',images[1]),('focus',images[2]),border=16,padding=0,sticky='nsew')
-        app.style.layout(name,[(element,{'sticky':'nsew','children':[('Button.padding',{'sticky':'nsew','children':[('Button.label',{'sticky':'nsew'})]})]})])
-    for index,(image,color) in enumerate(zip(images,[bg,hover,bg])):
-        image.blank()
-        radius=8 if name.startswith(('Sidebar.','Nav.')) else 14
-        for y in range(40):
-            distance=max(0,radius-min(y,39-y)-0.5)
-            left=max(0,math.ceil(radius-math.sqrt(max(0,radius*radius-distance*distance))))
-            focus_color='#70ddc9' if name.startswith('Sidebar.') else app.p['fg']
-            image.put(focus_color if index==2 else color,to=(left,y,40-left,y+1))
-            if index==2 and 2<=y<38:
-                image.put(color,to=(min(left+2,19),y,max(40-left-2,21),y+1))
-            if indicator:
-                # Le trait épouse tout le bord gauche, y compris ses deux courbes.
-                image.put(indicator,to=(left,y,left+3,y+1))
-
-
-def rounded(canvas,x,y,w,h,r,**kw):
-    r=min(r,w/2,h/2)
-    points=[]
-    for cx,cy,start in [(x+w-r,y+r,-90),(x+w-r,y+h-r,0),(x+r,y+h-r,90),(x+r,y+r,180)]:
-        for step in range(13):
-            a=math.radians(start+step*7.5)
-            points.extend((cx+r*math.cos(a),cy+r*math.sin(a)))
-    return canvas.create_polygon(*points,**kw)
 
 
 class RoundedPanel(tk.Canvas):
