@@ -16,6 +16,10 @@ MESSAGES_WINDOWS = {
     1330: "Le mot de passe de ce compte a expiré. Changez-le depuis une session Windows.",
     1907: "Le mot de passe de ce compte doit être changé avant la première connexion.",
     1331: "Ce compte est désactivé.",
+    1793: "Ce compte a expiré.",
+    1328: "Ce compte n'est pas autorisé à se connecter à cette heure-ci.",
+    1329: "Ce compte n'est pas autorisé à se connecter depuis ce poste.",
+    1385: "Ce compte n'est pas autorisé à se connecter sur ce poste.",
     1311: "Le domaine INTRA est injoignable depuis ce poste.",
 }
 

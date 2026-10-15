@@ -3,6 +3,8 @@
 import ctypes
 import socket
 import winreg
+
+import annuaire
 from ctypes import wintypes
 
 _kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
@@ -79,7 +81,7 @@ def _logon(utilisateur: str, domaine: str, mot_de_passe: str) -> wintypes.HANDLE
 
 def verifier_identifiants(utilisateur: str, domaine: str, mot_de_passe: str) -> None:
     """Lève OSError si le contrôleur de domaine refuse les identifiants."""
-    _kernel32.CloseHandle(_logon(utilisateur, domaine, mot_de_passe))
+    ouvrir_session(utilisateur, domaine, mot_de_passe)
 
 
 # --- Groupes du compte (remplace _AD_IsMemberOf) ---
@@ -119,7 +121,17 @@ def _groupes_du_jeton(jeton: wintypes.HANDLE) -> list[str]:
 
 
 def ouvrir_session(utilisateur: str, domaine: str, mot_de_passe: str) -> list[str]:
-    """Vérifie le compte et renvoie ses groupes de sécurité, imbrications comprises."""
+    """Vérifie le compte et renvoie ses groupes de sécurité, imbrications comprises.
+
+    Le compte est vérifié par l'annuaire (LDAP), sans ouvrir de session sur ce poste :
+    un compte vert fonctionne donc depuis un poste blanc et inversement. Si aucun
+    contrôleur ne répond en LDAP, on se rabat sur une ouverture de session locale.
+    Un refus du mot de passe n'est jamais retenté (verrouillage du compte).
+    """
+    try:
+        return annuaire.groupes_du_compte(utilisateur, domaine, mot_de_passe)
+    except annuaire.AnnuaireInjoignable:
+        pass
     jeton = _logon(utilisateur, domaine, mot_de_passe)
     try:
         return _groupes_du_jeton(jeton)
@@ -158,11 +170,14 @@ _kernel32.GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintype
 def run_as(utilisateur: str, domaine: str, mot_de_passe: str, ligne_commande: str, *,
            masque: bool = False, attendre: bool = False,
            dossier: str = r"C:\Windows\System32") -> int:
-    """Équivalent de RunAs / RunAsWait (avec profil).
+    """Équivalent de « runas /netonly » : le programme tourne sous la session Windows du poste,
+    mais présente le compte donné aux machines distantes (PMAD, sc \\\\poste...).
 
+    Aucune session n'est ouverte localement avec ce compte : un compte vert fonctionne
+    donc depuis un poste blanc et inversement.
     Retourne le PID, ou le code de sortie du processus si `attendre` est vrai.
     """
-    LOGON_WITH_PROFILE = 1
+    LOGON_NETCREDENTIALS_ONLY = 2
     STARTF_USESHOWWINDOW, SW_HIDE, CREATE_NO_WINDOW = 0x1, 0, 0x08000000
     INFINITE = 0xFFFFFFFF
     si = _STARTUPINFOW(cb=ctypes.sizeof(_STARTUPINFOW))
@@ -170,7 +185,7 @@ def run_as(utilisateur: str, domaine: str, mot_de_passe: str, ligne_commande: st
         si.dwFlags, si.wShowWindow = STARTF_USESHOWWINDOW, SW_HIDE
     pi = _PROCESS_INFORMATION()
     commande = ctypes.create_unicode_buffer(ligne_commande)  # doit être modifiable
-    if not _advapi32.CreateProcessWithLogonW(utilisateur, domaine, mot_de_passe, LOGON_WITH_PROFILE,
+    if not _advapi32.CreateProcessWithLogonW(utilisateur, domaine, mot_de_passe, LOGON_NETCREDENTIALS_ONLY,
                                              None, commande, CREATE_NO_WINDOW if masque else 0,
                                              None, dossier, ctypes.byref(si), ctypes.byref(pi)):
         raise _erreur(ctypes.get_last_error())
