@@ -54,7 +54,8 @@ class RegleTest(unittest.TestCase):
         session = droits.session_bypass()
         self.assertTrue(session.bypass)
         self.assertIsNone(session.mot_de_passe)
-        self.assertEqual(session.ecrans, set(droits.ECRANS))
+        self.assertEqual(session.ecrans, set(droits.ECRANS + droits.DROITS))
+        self.assertTrue(session.autorise("scripts_edition"))
         self.assertTrue(session.autorise("admin"))
 
 
@@ -64,7 +65,8 @@ class ConfigTest(unittest.TestCase):
 
     def test_erreurs_explicites(self):
         cas = {
-            "écran": config(PROFILS={"Minimal": ["accueil", "diagnostique"]}, UTILISATEURS={}),
+            "Écrans possibles": config(PROFILS={"Minimal": ["accueil", "diagnostique"]}, UTILISATEURS={}),
+            "Droits possibles": config(PROFILS={"Minimal": ["accueil", "script_edition"]}, UTILISATEURS={}),
             "profil": config(UTILISATEURS={"RG1": "Complett"}),
             "PROFIL_PAR_DEFAUT": config(PROFIL_PAR_DEFAUT="Rien"),
             "AUTORISER_BYPASS": config(AUTORISER_BYPASS="oui"),

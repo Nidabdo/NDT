@@ -33,7 +33,7 @@ class DocumentationTest(unittest.TestCase):
 
     def test_failed_save_preserves_articles(self):
         save_articles(self.path,self.articles)
-        with patch('documentation.os.replace',side_effect=OSError('disk error')):
+        with patch('stockage.os.replace',side_effect=OSError('disk error')):
             with self.assertRaises(OSError):save_articles(self.path,[])
         self.assertEqual(load_articles(self.path),self.articles)
 
@@ -81,8 +81,12 @@ class DocumentationTest(unittest.TestCase):
                     for size in ('800x600','1180x800'):
                         app.geometry(size)
                         app.show_home();app.update()
-                        for button in (w for w in descendants(app.container) if isinstance(w,ttk.Button)):
-                            self.assertLessEqual(button.winfo_rooty()+button.winfo_height(),app.winfo_rooty()+app.winfo_height())
+                        # L'accueil Pause Cafew défile : la recherche reste visible, le reste est atteignable.
+                        accueil=app.pause_cafew
+                        ouvrir=next(w for w in descendants(accueil) if isinstance(w,ttk.Button) and w.cget('text')=='Ouvrir')
+                        self.assertLessEqual(ouvrir.winfo_rooty()+ouvrir.winfo_height(),app.winfo_rooty()+app.winfo_height())
+                        if accueil.contenu.winfo_reqheight()>accueil.canvas.winfo_height()+2:
+                            self.assertTrue(accueil.barre.winfo_manager())
                         app.show_documentation();app.update()
                         docs=app.documentation
                         self.assertGreater(docs.content.winfo_height(),100)

@@ -11,13 +11,13 @@ from tkinter import ttk
 
 import poste_winapi as winapi
 from diagnostic_form import RoundedPanel, SearchBox
+from navigateur import ouvrir_url
 from poste_validation import SaisieInvalide, valider_hote
 
 DOMAINE = "INTRA"
 CMRC_VIEWER = (r"\\grewinshare02\dsl$\003-Applications SOGETI\Outils SD"
                r"\RemoteControl\SCCM 2012 Remote Control\RC Viewer 2012\CmRcViewer.exe")
 OSCAR_DIAG = "https://gre-oscar-v2.intra.cea.fr/amdb/diag_poste?assettag={hote}"
-NAVIGATEUR = "msedge"
 PING_TIMEOUT_MS = 250
 SUFFIXE_DOCK = "-DOCK"
 NB_POSTES_RECENTS = 6
@@ -269,7 +269,7 @@ class OutilsPoste(ttk.Frame):
                 self.var_statut.set(f"{hote} ne répond pas.")
                 self.app.warn("Poste injoignable", "L'hôte et son dock ne répondent pas au ping !")
                 if diag_oscar and genre == "NOM":
-                    os.startfile(NAVIGATEUR, arguments=f'"{OSCAR_DIAG.format(hote=hote)}"')
+                    ouvrir_url(OSCAR_DIAG.format(hote=hote))
                 return
             cible, message = resultat
             self.var_hote.set(cible)

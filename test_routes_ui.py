@@ -163,6 +163,32 @@ class RouteUITest(unittest.TestCase):
                 finally:
                     app.destroy()
 
+    def test_confirmation_seulement_si_diagnostic_engage(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.object(ndt,'SETTINGS_FILE',Path(directory)/'settings.json'):
+                app=ndt.App(session=droits.session_bypass());app.attributes('-alpha',0)
+                try:
+                    def ouvrir_diagnostic():
+                        app.questions=ndt.normalize([dict(id='os',text='Poste',type='choice',choices=['Linux','Windows']),
+                                                     dict(id='q',text='Problème',type='free')])
+                        app.answers={};app.skipped=set();app.current=0;app.history=[0]
+                        app.show_question();app.update()
+                    with patch.object(app,'confirm',return_value=True) as confirmer:
+                        # Onglet ouvert sans choisir Windows / Linux : on part sans fenêtre.
+                        ouvrir_diagnostic();app.navigate('documentation')
+                        self.assertEqual(app.screen,'documentation')
+                        ouvrir_diagnostic();app.quit_to_home()
+                        self.assertEqual(app.screen,'home')
+                        confirmer.assert_not_called()
+                        # Système choisi : le diagnostic est engagé, la confirmation apparaît.
+                        ouvrir_diagnostic();app.choice_var.set(1);app.next_question();app.update()
+                        self.assertTrue(app.diagnostic_engage())
+                        app.navigate('documentation')
+                        confirmer.assert_called_once()
+                        self.assertEqual(app.screen,'documentation')
+                finally:
+                    app.destroy()
+
 
 if __name__ == "__main__":
     unittest.main()

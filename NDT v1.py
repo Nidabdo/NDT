@@ -24,6 +24,8 @@ from parcours_editor import ParcoursEditor
 from coordination_auth import verify_coordinateur, save_coordinateur_password
 from documentation import Documentation, ArticleList
 from outils_poste import OutilsPoste
+from pause_cafew import DonneesInvalides, PauseCafew, TuileOutil, verifier_donnees
+from scripts_bt import ScriptsBT
 from diagnostic_form import DiagnosticForm, RoundedField, RoundedPanel, SearchBox, cercle, rounded, style_rounded_button
 
 # Compte personnel, non affiché dans l'interface de connexion.
@@ -41,13 +43,14 @@ DATA_FILE = BASE_DIR / "questions.json"
 SETTINGS_FILE = BASE_DIR / "settings.json"
 AUTH_FILE = BASE_DIR / "coordination_auth.json"
 DOCUMENTATION_FILE = BASE_DIR / "documentation.json"
+SCRIPTS_FILE = BASE_DIR / "scripts.json"
 
 DEFAULT_TEMPLATE = "RÉSULTAT DU DIAGNOSTIC\n\n{reponses}"
 RESERVED_TAGS = {"reponses"}
 NOT_ANSWERED = ""
 FONT = "Segoe UI"
 NAV_ITEMS = (("Accueil", "home"), ("Diagnostic", "question"),
-             ("Documentation", "documentation"), ("Outils poste", "outils"))
+             ("Documentation", "documentation"), ("Outils poste", "outils"), ("Scripts", "scripts"))
 
 PALETTES = {
     "light": {
@@ -287,9 +290,15 @@ class App(tk.Tk):
         if session is None:
             try:
                 droits.verifier_config()
+                verifier_donnees()
             except droits.ConfigInvalide as err:
                 messagebox.showerror("Configuration des accès invalide",
                                      f"Le fichier acces.py contient une erreur :\n\n{err}")
+                self.destroy()
+                return
+            except DonneesInvalides as err:
+                messagebox.showerror("Liens de l'accueil invalides",
+                                     f"Le fichier pause_cafew_donnees.py contient une erreur :\n\n{err}")
                 self.destroy()
                 return
             session = demander_session(self)
@@ -392,10 +401,10 @@ class App(tk.Tk):
             self.leave_admin()
             if self.screen == "admin":
                 return
-        elif self.mode in ("question", "form"):
+        elif self.diagnostic_engage():
             if not self.confirm("Quitter le diagnostic", "Quitter ce parcours ? Vos réponses seront perdues.", yes="Quitter", no="Continuer"):
                 return
-        {"home": self.show_home, "question": self.start_user, "admin": self.open_admin, "documentation":self.show_documentation, "outils": self.show_outils}[target]()
+        {"home": self.show_home, "question": self.start_user, "admin": self.open_admin, "documentation":self.show_documentation, "outils": self.show_outils, "scripts": self.show_scripts}[target]()
 
     def show_documentation(self):
         self.clear()
@@ -404,6 +413,14 @@ class App(tk.Tk):
         ttk.Label(self.container,text='Documentation',style='Title.TLabel').pack(anchor='w',pady=(0,8))
         self.documentation = Documentation(self.container,self,DOCUMENTATION_FILE)
         self.documentation.pack(fill='both',expand=True)
+
+    def show_scripts(self):
+        self.clear()
+        self.session_user = None
+        self.set_screen('scripts', 'Scripts')
+        ttk.Label(self.container, text='Scripts', style='Title.TLabel').pack(anchor='w', pady=(0, 8))
+        self.scripts_bt = ScriptsBT(self.container, self, SCRIPTS_FILE, edition=self.autorise('scripts_edition'))
+        self.scripts_bt.pack(fill='both', expand=True)
 
     def show_outils(self):
         self.clear()
@@ -569,13 +586,16 @@ class App(tk.Tk):
     # Widgets tk "classiques" (Text, Listbox...) : coloriés à la main
     def paint(self, w):
         p = self.p
+        apres_theme = getattr(w, "apres_theme", None)
+        if callable(apres_theme):
+            apres_theme()
         if isinstance(w, RoundedPanel):
             w.draw()
         elif isinstance(w, (RoundedField, SearchBox)):
             w.draw()
         elif isinstance(w, tk.Text) and isinstance(w.master, RoundedField):
             w.master.draw()
-        elif isinstance(w, (ChoiceCard, ArticleList)):
+        elif isinstance(w, (ChoiceCard, ArticleList, TuileOutil)):
             w.draw()
         elif isinstance(w, tk.Canvas):
             w.configure(bg=p["surface"] if w == getattr(self, "choice_canvas", None) or getattr(w,'_surface_background',False) else p["bg"])
@@ -743,51 +763,13 @@ class App(tk.Tk):
     def show_home(self):
         self.session_user = None
         self.clear()
-        self.set_screen("home", "Accueil")
-        wrap = ttk.Frame(self.container)
-        wrap.pack(fill="x", pady=(30, 0))
-        ttk.Label(wrap, text="ESPACE TECHNICIEN", style="Eyebrow.TLabel").pack(anchor="w")
-        ttk.Label(wrap, text="Votre point de départ.", style="Title.TLabel").pack(anchor="w", pady=(12, 8))
-        ttk.Label(wrap, text="Décrire un incident ou retrouver la bonne procédure.",
-                  style="Muted.TLabel").pack(anchor="w", pady=(0, 32))
-        tiles = ttk.Frame(wrap)
-        tiles.pack(fill="x")
-        tiles.columnconfigure(0, weight=1, uniform='home')
-        tiles.columnconfigure(1, weight=1, uniform='home')
-        cartes = [carte for carte in (
-            ("question", "Diagnostic", "Décrivez votre incident et obtenez une synthèse prête à partager.",
-             "Lancer un diagnostic  →", self.start_user),
-            ("documentation", "Documentation",
-             "Retrouvez les procédures et les manipulations utiles à votre intervention.",
-             "Consulter les procédures  →", self.show_documentation),
-        ) if self.autorise(carte[0])]
-        if not cartes:
-            ttk.Label(tiles, text="Aucun module n'est attribué à votre compte.",
-                      style="Muted.TLabel").grid(row=0, column=0, sticky="w")
-            return
-        panneaux = [self.tile(tiles, col, *carte[1:], primary=col == 0) for col, carte in enumerate(cartes)]
-        if len(panneaux) < 2:
-            return
-        first, second = panneaux
-        def reflow(event):
-            narrow=event.width<650
-            tiles.columnconfigure(1,weight=0 if narrow else 1)
-            first.grid_configure(padx=(0,0) if narrow else (0,8))
-            second.grid_configure(row=1 if narrow else 0,column=0 if narrow else 1,
-                                  padx=0 if narrow else (8,0),pady=(12,0) if narrow else 0)
-        tiles.bind('<Configure>',reflow)
+        self.set_screen("home", "Pause Cafew")
+        self.pause_cafew = PauseCafew(self.container, self)
+        self.pause_cafew.pack(fill="both", expand=True)
 
-    def tile(self, parent, col, title, text, button, command, primary=True):
-        panel = RoundedPanel(parent, self, padding=24)
-        panel.grid(row=0, column=col, padx=(0, 14) if col == 0 else (0, 0), sticky="nsew")
-        card = panel.body
-        ttk.Label(card, text=title, style="Card.H2.TLabel").pack(anchor="w")
-        description=ttk.Label(card, text=text, style="Card.Muted.TLabel", wraplength=250, justify="left")
-        description.pack(fill='x',pady=(8,20))
-        description.bind('<Configure>',lambda e:description.configure(wraplength=max(160,e.width)))
-        ttk.Button(card, text=button, style="Card.Accent.TButton" if primary else 'Card.TButton',
-                   command=command).pack(anchor="w")
-        return panel
+    def save_setting(self, key, value):
+        self.settings[key] = value
+        save_settings(self.settings)
 
     # ===== Partie utilisateur =====
     def start_user(self):
@@ -997,8 +979,15 @@ class App(tk.Tk):
         self.current = self.history[-1]
         self.show_question()
 
+    def diagnostic_engage(self):
+        """Vrai dès qu'une réponse a été donnée (choix Windows / Linux compris) :
+        quitter avant cela ne fait rien perdre, donc ne demande pas de confirmation."""
+        if self.mode == "form":
+            return True
+        return self.mode == "question" and bool(self.answers or len(self.history) > 1)
+
     def quit_to_home(self):
-        if self.confirm("Abandonner ?",
+        if not self.diagnostic_engage() or self.confirm("Abandonner ?",
                         "Revenir au menu ? Vos réponses seront perdues.",
                         yes="Revenir au menu", no="Rester"):
             self.show_home()
@@ -1095,7 +1084,7 @@ class App(tk.Tk):
         if not valid:
             self.error("Accès refusé", "Utilisateur ou mot de passe incorrect.")
             return "break"
-        if self.mode in ("question", "form") and not self.confirm("Quitter le diagnostic", "Ouvrir l’éditeur et abandonner les réponses en cours ?", yes="Ouvrir", no="Annuler"):
+        if self.diagnostic_engage() and not self.confirm("Quitter le diagnostic", "Ouvrir l’éditeur et abandonner les réponses en cours ?", yes="Ouvrir", no="Annuler"):
             return "break"
         data = load_data()
         self.session_user = username
