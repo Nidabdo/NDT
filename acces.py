@@ -49,6 +49,7 @@ PROFILS = {
 # ---------------------------------------------------------------------
 UTILISATEURS = {
     "GRE - Infogerance_BT - Admin": "Support",
+    "NL767921":   "Complet",
     "RG768446":   "Complet",
     "A-RG768446": "Complet",
 }
