@@ -126,6 +126,56 @@ class InterfaceTest(unittest.TestCase):
         self.assertIn("INTRA\\RG1", ecran.var_compte.get())
         self.assertFalse(ecran.bouton_connexion.winfo_manager())
 
+    def test_changer_compte_actualise_les_droits_et_identifiants(self):
+        app = self.ouvrir(droits.session_bypass())
+        minimal = droits.session_ad("RG1", "INTRA", "secret", [], config())
+
+        def connexion(_app):
+            self.assertIsNone(app.session)
+            self.assertIsNone(app.compte_poste)
+            self.assertIsNone(app.session_user)
+            self.assertFalse(app.container.winfo_children())
+            return minimal
+
+        with patch.object(ndt, "demander_session", side_effect=connexion):
+            app.changer_compte_btn.invoke()
+        self.assertIs(app.session, minimal)
+        self.assertEqual(app.compte_poste, ("RG1", "secret"))
+        self.assertEqual(app.screen, "home")
+        self.assertNotIn("BYPASS", app.title())
+        self.assertIn("INTRA\\RG1", app.session_label.cget("text"))
+        for boutons in (app.nav_buttons, app.compact_nav_buttons):
+            self.assertEqual({cle for cle, b in boutons.items() if b.winfo_manager()},
+                             {"home", "question"})
+        self.assertFalse(app.coordination_btn.winfo_manager())
+
+        with patch.object(ndt, "demander_session", return_value=droits.session_bypass()):
+            app.changer_compte()
+        self.assertIsNone(app.compte_poste)
+        self.assertTrue(app.coordination_btn.winfo_manager())
+        for boutons in (app.nav_buttons, app.compact_nav_buttons):
+            self.assertTrue(all(b.winfo_manager() for b in boutons.values()))
+        self.assertEqual(app.title().count("MODE BYPASS"), 1)
+
+    def test_changer_compte_peut_etre_annule_pendant_diagnostic(self):
+        app = self.ouvrir(droits.session_bypass())
+        ancienne = app.session
+        with patch.object(app, "diagnostic_engage", return_value=True), \
+             patch.object(app, "confirm", return_value=False), \
+             patch.object(ndt, "demander_session") as connexion:
+            app.changer_compte()
+        connexion.assert_not_called()
+        self.assertIs(app.session, ancienne)
+
+    def test_quitter_connexion_ne_restaure_pas_ancienne_session(self):
+        app = self.ouvrir(droits.session_bypass())
+        with patch.object(ndt, "demander_session", return_value=None), \
+             patch.object(app, "destroy") as fermer:
+            app.changer_compte()
+        fermer.assert_called_once()
+        self.assertIsNone(app.session)
+        self.assertIsNone(app.compte_poste)
+
 
 if __name__ == "__main__":
     unittest.main()

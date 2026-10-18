@@ -320,19 +320,72 @@ class App(tk.Tk):
         """Masque les écrans non autorisés et affiche qui est connecté."""
         for boutons in (self.nav_buttons, self.compact_nav_buttons):
             for cle, bouton in boutons.items():
-                if not self.autorise(cle):
-                    bouton.pack_forget()
+                bouton.pack_forget()
+            for cle, bouton in boutons.items():
+                if self.autorise(cle):
+                    if boutons is self.nav_buttons:
+                        bouton.pack(fill="x", pady=5)
+                    else:
+                        bouton.pack(side="left", padx=(0, 8))
         if not self.autorise("admin"):
             self.coordination_btn.pack_forget()
+        else:
+            self.coordination_btn.pack(side="right")
+        for nom in ("session_label", "bypass_label"):
+            label = getattr(self, nom, None)
+            if label is not None:
+                label.destroy()
+                setattr(self, nom, None)
+        self.title("NDT 1.12 — Le diagnostic, guidé")
         s = self.session
         if s.bypass:
             self.title(self.title() + "  —  MODE BYPASS")
-            ttk.Label(self.top_bar, text="MODE BYPASS", style="Bypass.TLabel").pack(side="left", padx=(16, 0))
+            self.bypass_label = ttk.Label(self.top_bar, text="MODE BYPASS", style="Bypass.TLabel")
+            self.bypass_label.pack(side="left", padx=(16, 0))
             texte = "Hors domaine\nTous les accès"
         else:
             texte = f"{s.domaine}\\{s.login}\n{' + '.join(s.profils)}"
-        ttk.Label(self.nav_body, text=texte, style="Sidebar.Muted.TLabel", justify="left",
-                  wraplength=150).pack(side="bottom", anchor="w", padx=10, pady=(0, 12))
+        self.session_label = ttk.Label(self.nav_body, text=texte, style="Sidebar.Muted.TLabel",
+                                       justify="left", wraplength=150)
+        self.session_label.pack(side="bottom", anchor="w", padx=10, pady=(0, 12))
+
+    def changer_compte(self):
+        """Ferme la session courante puis demande un nouveau compte."""
+        if self.session is None:
+            return
+        if getattr(self, "screen", None) == "admin":
+            self.leave_admin()
+            if self.screen == "admin":
+                return
+        elif self.diagnostic_engage():
+            if not self.confirm("Changer de compte",
+                                "Changer de compte ? Les réponses du diagnostic seront perdues.",
+                                yes="Changer de compte", no="Continuer"):
+                return
+        self.withdraw()
+        for widget in self.winfo_children():
+            if isinstance(widget, tk.Toplevel):
+                widget.destroy()
+        self.clear()
+        self.session = None
+        self.compte_poste = None
+        self.session_user = None
+        self.questions = []
+        self.template = ""
+        self.answers = {}
+        self.skipped = set()
+        self.history = []
+        self.current = 0
+        self.selected = None
+        session = demander_session(self)
+        if session is None:
+            self.destroy()
+            return
+        self.session = session
+        self.compte_poste = (session.login, session.mot_de_passe) if session.mot_de_passe else None
+        self.appliquer_droits()
+        self.show_home()
+        self.deiconify()
 
     # ===== Thème =====
     def build_header(self):
@@ -370,6 +423,9 @@ class App(tk.Tk):
             button.pack(side='left',padx=(0,8));self.compact_nav_buttons[key]=button
         footer = ttk.Frame(self.workspace, padding=(32, 0, 24, 16))
         footer.pack(side="bottom", fill="x")
+        self.changer_compte_btn = ttk.Button(footer, text="Changer de compte",
+                                             style="Ghost.TButton", command=self.changer_compte)
+        self.changer_compte_btn.pack(side="left")
         self.coordination_btn = ttk.Button(footer, text="Coordination", style="Admin.TButton",
                                            command=self.open_admin)
         self.coordination_btn.pack(side="right")
