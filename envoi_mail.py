@@ -22,6 +22,8 @@ try {
         $expediteur = "<t:From>$boite</t:From>"
         if ($m.copie_boite_expediteur) { $dossier = "<t:DistinguishedFolderId Id=`"sentitems`">$boite</t:DistinguishedFolderId>" }
     }
+    $copie = ''
+    if ($m.copie) { $copie = "<t:CcRecipients><t:Mailbox><t:EmailAddress>$(X $m.copie)</t:EmailAddress></t:Mailbox></t:CcRecipients>" }
     $texte = ([string]$m.texte) -replace "`r?`n", "`r`n"
     $soap = @"
 <?xml version="1.0" encoding="utf-8"?>
@@ -37,6 +39,7 @@ try {
      <t:Subject>$(X $m.objet)</t:Subject>
      <t:Body BodyType="Text">$(X $texte)</t:Body>
      <t:ToRecipients><t:Mailbox><t:EmailAddress>$(X $m.destinataire)</t:EmailAddress></t:Mailbox></t:ToRecipients>
+     $copie
      $expediteur
     </t:Message>
    </m:Items>
@@ -67,10 +70,11 @@ class EnvoiImpossible(Exception):
     """L'envoi a échoué ; le message est celui d'Exchange ou de Windows."""
 
 
-def envoyer(url, destinataire, objet, texte, expediteur="", copie_boite_expediteur=True, delai=60):
-    """Envoie le mail ; lève EnvoiImpossible avec un message lisible en cas d'échec."""
+def envoyer(url, destinataire, objet, texte, expediteur="", copie_boite_expediteur=True, delai=60, copie=""):
+    """Envoie le mail ; `copie` : adresse en copie (Cc), facultative.
+    Lève EnvoiImpossible avec un message lisible en cas d'échec."""
     mail = {"url": url, "destinataire": destinataire, "objet": objet, "texte": texte,
-            "expediteur": expediteur, "copie_boite_expediteur": copie_boite_expediteur}
+            "expediteur": expediteur, "copie_boite_expediteur": copie_boite_expediteur, "copie": copie}
     env = dict(os.environ, NDT_MAIL=json.dumps(mail, ensure_ascii=False))
     try:
         resultat = subprocess.run(

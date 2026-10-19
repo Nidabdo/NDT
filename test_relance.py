@@ -59,6 +59,15 @@ class ModelesTest(unittest.TestCase):
         for invalide in ("", "12a4", "XXXXXXXX"):
             self.assertFalse(ticket_valide(invalide))
 
+    def test_correspondant_a_partir_de_j2(self):
+        self.assertEqual({m["nom"] for m in MODELES_INITIAUX if not m["correspondant"]}, {"J0"})
+        with tempfile.TemporaryDirectory() as dossier:   # modèles enregistrés avant l'option
+            chemin = Path(dossier) / "relances.json"
+            anciens = [{k: v for k, v in m.items() if k != "correspondant"} for m in MODELES_INITIAUX]
+            chemin.write_text(json.dumps({"version": 1, "modeles": anciens}), encoding="utf-8")
+            self.assertEqual({m["nom"]: m["correspondant"] for m in charger_modeles(chemin)},
+                             {"J0": False, "J2": True, "J4": True, "J7": True, "J14": True})
+
     def test_fichier(self):
         with tempfile.TemporaryDirectory() as dossier:
             chemin = Path(dossier) / "relances.json"
@@ -89,6 +98,12 @@ class EnvoiTest(unittest.TestCase):
         self.assertIn("<t:From><t:Mailbox><t:EmailAddress>csig@cea.fr</t:EmailAddress>", soap)
         self.assertIn("<t:Subject>Relance &lt;J2&gt; – n°1</t:Subject>", soap)
         self.assertIn("Bonjour &amp; &quot;merci&quot;\r\nligne 2 : é", soap)
+        self.assertNotIn("CcRecipients", soap)   # pas de copie demandée
+
+    def test_correspondant_en_copie(self):
+        envoi_mail.envoyer(self.url, "demandeur@cea.fr", "o", "t", "csig@cea.fr", copie="ci@cea.fr")
+        self.assertIn("<t:CcRecipients><t:Mailbox><t:EmailAddress>ci@cea.fr</t:EmailAddress>",
+                      FauxExchange.recu[0])
 
     def test_refus_exchange_remonte(self):
         FauxExchange.classe, FauxExchange.message = "Error", "Vous ne pouvez pas envoyer en tant que csig."
@@ -172,6 +187,44 @@ class EcranTest(unittest.TestCase):
         self.assertIn("12345678", objet)
         self.assertEqual(corps, ecran.texte.get("1.0", "end-1c"))
         self.assertIn("envoyée à manager@cea.fr", ecran.statut.get())
+
+    def test_champ_correspondant(self):
+        app = self.ouvrir()
+        ecran = app.relance
+        ecran.var_ticket.set("42")
+        ecran.choisir_type("assistance")
+
+        def libelles():
+            return [str(w.cget("text")) for w in ecran.champs.winfo_children() if w.winfo_class() == "TLabel"]
+        self.boutons(ecran)["J0"].invoke()
+        self.assertNotIn("Correspondant informatique", libelles())
+        self.boutons(ecran)["J2"].invoke()
+        self.assertIn("Correspondant informatique", libelles())
+        ecran.adresses["demandeur"].set("demandeur@cea.fr")
+        ecran.valeurs["TELEPHONE"].set("0400")
+        ecran.var_correspondant.set("pas une adresse")
+        with patch.object(relance.envoi_mail, "envoyer") as envoyer, patch.object(app, "error") as erreur:
+            ecran.envoyer()
+        erreur.assert_called_once()
+        envoyer.assert_not_called()
+        for saisie, attendu in (("ci@cea.fr", "ci@cea.fr"), ("", "")):   # facultatif
+            ecran.var_correspondant.set(saisie)
+            with patch.object(relance.envoi_mail, "envoyer") as envoyer, \
+                 patch.object(app, "confirm", return_value=True) as confirmer:
+                ecran.envoyer()
+                limite = time.monotonic() + 5
+                while not envoyer.called and time.monotonic() < limite:
+                    app.update()
+                    time.sleep(0.01)
+                while ecran.bouton_envoyer.instate(["disabled"]) and time.monotonic() < limite:
+                    app.update()
+                    time.sleep(0.01)
+            self.assertEqual(envoyer.call_args.kwargs["copie"], attendu)
+            message = confirmer.call_args.args[1]
+            if attendu:
+                self.assertIn(f"avec {attendu} en copie", message)
+            else:
+                self.assertNotIn("en copie", message)
 
     def test_texte_retouche_conserve(self):
         app = self.ouvrir()

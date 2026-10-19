@@ -43,7 +43,8 @@ _TIERS = ("Bonjour, \n\nNous avons tenté de prendre contact avec M. / Mme {DEMA
 
 def _modele(id_, nom, types, texte, destinataire="demandeur"):
     return {"id": id_, "nom": nom, "types": types, "destinataire": destinataire,
-            "objet": f"Relance {nom} – Demande n°{{TICKET}}", "texte": texte}
+            "objet": f"Relance {nom} – Demande n°{{TICKET}}", "texte": texte,
+            "correspondant": nom != "J0"}   # champ « Correspondant informatique » en copie, dès J2
 
 
 MODELES_INITIAUX = [
@@ -86,7 +87,11 @@ def ticket_valide(numero):
 def _valider(modeles):
     ids = set()
     for modele in modeles:
+        if isinstance(modele, dict) and "correspondant" not in modele:
+            # Modèles enregistrés avant l'option : correspondant proposé à partir de J2.
+            modele["correspondant"] = modele.get("nom") != "J0"
         if (not isinstance(modele, dict)
+                or not isinstance(modele["correspondant"], bool)
                 or any(not isinstance(modele.get(c), str) for c in ("id", "nom", "objet", "texte", "destinataire"))
                 or not isinstance(modele.get("types"), list)
                 or not set(modele["types"]) <= set(TYPES)
@@ -127,6 +132,7 @@ class Relance(ttk.Frame):
         self.texte_modifie = False
         self.valeurs = {}                                     # variables partagées entre relances
         self.adresses = {cle: tk.StringVar() for cle in DESTINATAIRES}
+        self.var_correspondant = tk.StringVar()                # copie facultative, gardée entre relances
         self._resultats = queue.Queue()
         self.echec = False
         try:
@@ -232,6 +238,13 @@ class Relance(ttk.Frame):
         libelle = "À  (demandeur)" if modele["destinataire"] == "demandeur" else "À  (personne à solliciter)"
         ttk.Label(self.champs, text=libelle, style="Card.TLabel").grid(row=ligne, column=0, sticky="w", padx=(0, 12), pady=3)
         ttk.Entry(self.champs, textvariable=self.adresses[modele["destinataire"]]).grid(row=ligne, column=1, sticky="ew", pady=3)
+        if modele["correspondant"]:
+            ligne += 1
+            ttk.Label(self.champs, text="Correspondant informatique", style="Card.TLabel").grid(
+                row=ligne, column=0, sticky="w", padx=(0, 12), pady=3)
+            ttk.Entry(self.champs, textvariable=self.var_correspondant).grid(row=ligne, column=1, sticky="ew", pady=3)
+            ttk.Label(self.champs, text="en copie, facultatif", style="Card.Muted.TLabel").grid(
+                row=ligne, column=2, sticky="w", padx=(8, 0))
         for nom in variables_a_saisir(modele):
             ligne += 1
             if nom not in self.valeurs:
@@ -279,6 +292,11 @@ class Relance(ttk.Frame):
         if not ADRESSE.match(destinataire):
             self.app.error("Destinataire invalide", "Saisissez une adresse e-mail valide (ex. prenom.nom@cea.fr).")
             return
+        copie = self.var_correspondant.get().strip() if self.modele["correspondant"] else ""
+        if copie and not ADRESSE.match(copie):
+            self.app.error("Correspondant informatique invalide",
+                           "Saisissez une adresse e-mail valide, ou laissez le champ vide.")
+            return
         restantes = sorted(set(variables(objet + "\n" + texte)))
         if restantes and not self.app.confirm(
                 "Champs non remplis",
@@ -287,7 +305,8 @@ class Relance(ttk.Frame):
             return
         if not self.app.confirm("Envoyer la relance",
                                 f"Envoyer la relance {self.modele['nom']} à {destinataire}\n"
-                                f"depuis {EXPEDITEUR} ?", yes="Envoyer", no="Annuler"):
+                                + (f"avec {copie} en copie\n" if copie else "")
+                                + f"depuis {EXPEDITEUR} ?", yes="Envoyer", no="Annuler"):
             return
         nom = self.modele["nom"]
         self.bouton_envoyer.state(["disabled"])
@@ -296,7 +315,8 @@ class Relance(ttk.Frame):
 
         def travail():
             try:
-                envoi_mail.envoyer(EWS_URL, destinataire, objet, texte, EXPEDITEUR, COPIE_DANS_BOITE_PARTAGEE)
+                envoi_mail.envoyer(EWS_URL, destinataire, objet, texte, EXPEDITEUR, COPIE_DANS_BOITE_PARTAGEE,
+                                   copie=copie)
                 self._resultats.put(("ok", None))
             except envoi_mail.EnvoiImpossible as err:
                 self._resultats.put(("erreur", str(err)))
@@ -435,6 +455,9 @@ class Relance(ttk.Frame):
         destinataire = ttk.Combobox(corps, values=list(DESTINATAIRES.values()), state="readonly", width=40)
         destinataire.set(DESTINATAIRES[modele["destinataire"] if modele else "demandeur"])
         destinataire.grid(row=2, column=1, sticky="w", pady=4)
+        correspondant = tk.BooleanVar(value=modele["correspondant"] if modele else True)
+        ttk.Checkbutton(corps, text="Proposer le correspondant informatique en copie (facultatif)",
+                        variable=correspondant).grid(row=2, column=1, sticky="e", pady=4)
         ttk.Label(corps, text="Objet").grid(row=3, column=0, sticky="w", padx=(0, 12), pady=4)
         objet = ttk.Entry(corps, width=70)
         objet.grid(row=3, column=1, sticky="ew", pady=4)
@@ -462,7 +485,8 @@ class Relance(ttk.Frame):
             cle_destinataire = next(c for c, v in DESTINATAIRES.items() if v == destinataire.get())
             resultat["modele"] = {"id": modele["id"] if modele else uuid.uuid4().hex[:8],
                                   "nom": nom.get().strip(), "types": choisis, "destinataire": cle_destinataire,
-                                  "objet": objet.get().strip(), "texte": texte.get("1.0", "end-1c")}
+                                  "objet": objet.get().strip(), "texte": texte.get("1.0", "end-1c"),
+                                  "correspondant": correspondant.get()}
             win.destroy()
 
         rangee = ttk.Frame(corps)

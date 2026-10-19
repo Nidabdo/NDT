@@ -27,6 +27,7 @@ from outils_poste import OutilsPoste
 from pause_cafew import DonneesInvalides, PauseCafew, TuileOutil, verifier_donnees
 from scripts_bt import ScriptsBT
 from relance import Relance
+from mode_compact import BarreCompacte
 from diagnostic_form import DiagnosticForm, RoundedField, RoundedPanel, SearchBox, cercle, rounded, style_rounded_button
 
 # Compte personnel, non affiché dans l'interface de connexion.
@@ -275,6 +276,8 @@ class App(tk.Tk):
         self.selected = None
 
         self.mode = None   # "question" quand le questionnaire est affiché
+        self.mode_compact = False   # barre façon CS Tools, au premier plan
+        self.barre_compacte = None
 
         self.build_header()
         self.apply_theme()
@@ -334,6 +337,10 @@ class App(tk.Tk):
             self.coordination_btn.pack_forget()
         else:
             self.coordination_btn.pack(side="right")
+        if self.autorise("outils"):
+            self.compact_btn.pack(side="right", padx=(0, 4))
+        else:
+            self.compact_btn.pack_forget()
         for nom in ("session_label", "bypass_label"):
             label = getattr(self, nom, None)
             if label is not None:
@@ -390,6 +397,45 @@ class App(tk.Tk):
         self.show_home()
         self.deiconify()
 
+    # ===== Mode compact (barre façon CS Tools 2) =====
+    def passer_mode_compact(self):
+        """Réduit NDT à une barre PMAD / PING / BAD / IP / C:\\ / D:\\ toujours au premier plan.
+        L'écran en cours est seulement masqué : il est retrouvé tel quel en agrandissant."""
+        if self.mode_compact or not self.autorise("outils"):
+            return
+        self.mode_compact = True
+        self.update_idletasks()   # taille réelle de la fenêtre, redimensionnement en attente compris
+        self._avant_compact = (self.state(), self.geometry())
+        if self.state() == "zoomed":
+            self.state("normal")
+        self.sidebar.pack_forget()
+        self.workspace.pack_forget()
+        self.barre_compacte = BarreCompacte(self, self)
+        self.barre_compacte.pack(fill="both", expand=True)
+        self.minsize(1, 1)
+        self.resizable(False, False)
+        self.attributes("-topmost", True)
+        self.update_idletasks()
+        largeur = self.barre_compacte.winfo_reqwidth()
+        hauteur = self.barre_compacte.winfo_reqheight()
+        self.geometry(f"{largeur}x{hauteur}+{self.winfo_x()}+{self.winfo_y()}")
+
+    def quitter_mode_compact(self):
+        if not self.mode_compact:
+            return
+        self.barre_compacte.destroy()
+        self.barre_compacte = None
+        self.attributes("-topmost", False)
+        self.resizable(True, True)
+        self.minsize(800, 600)
+        etat, geometrie = self._avant_compact
+        self.geometry(geometrie)
+        self.mode_compact = False
+        self.sidebar.pack(side="left", fill="y", padx=(12, 0), pady=12)
+        self.workspace.pack(side="left", fill="both", expand=True)
+        if etat == "zoomed":
+            self.state("zoomed")
+
     # ===== Thème =====
     def build_header(self):
         sidebar = RoundedPanel(self,self,padding=16,radius=20,surface='sidebar',
@@ -419,6 +465,9 @@ class App(tk.Tk):
         self.theme_btn = ttk.Button(bar, style="Ghost.TButton",
                                     command=self.toggle_theme)
         self.theme_btn.pack(side="right")
+        self.compact_btn = ttk.Button(bar, text="Mode compact", style="Ghost.TButton",
+                                      command=self.passer_mode_compact)
+        self.compact_btn.pack(side="right", padx=(0, 4))
         self.compact_nav = ttk.Frame(self.workspace, padding=(18, 0))
         self.compact_nav_buttons={}
         for label, key in NAV_ITEMS:
@@ -434,7 +483,7 @@ class App(tk.Tk):
         self.coordination_btn.pack(side="right")
 
     def responsive_layout(self, event):
-        if event.widget != self or not hasattr(self, 'container'):
+        if event.widget != self or not hasattr(self, 'container') or self.mode_compact:
             return
         compact = self.winfo_width() < 1050 or self.winfo_height() < 750
         self.container.configure(padding=(18, 8) if compact else (28, 14))
@@ -953,14 +1002,14 @@ class App(tk.Tk):
 
     # ----- Raccourcis clavier -----
     def on_return(self, _event=None):
-        if self.mode != "question":
+        if self.mode != "question" or self.mode_compact:
             return None
         self.next_question()
         return "break"
 
     def on_arrow(self, step):
         """Flèches haut/bas : change le choix des questions à réponses prédéfinies."""
-        if self.mode != "question":
+        if self.mode != "question" or self.mode_compact:
             return None
         q = self.questions[self.current]
         if q["type"] != "choice":
@@ -976,7 +1025,7 @@ class App(tk.Tk):
 
     def on_key(self, event):
         """Touches 1 à 9 : sélection directe d'une réponse."""
-        if self.mode != "question":
+        if self.mode != "question" or self.mode_compact:
             return None
         q = self.questions[self.current]
         if q["type"] != "choice" or not event.char or event.char not in "123456789":
