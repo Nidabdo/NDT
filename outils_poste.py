@@ -180,8 +180,11 @@ class OutilsPoste(ttk.Frame):
 
     def _choisir(self, hote):
         self.var_hote.set(hote)
-        self.recherche.entry.focus_set()
+        self._focus_saisie()
         self.recherche.entry.icursor("end")
+
+    def _focus_saisie(self):
+        self.recherche.entry.focus_set()
 
     def _ajouter_recent(self, hote):
         self.recents = ([hote] + [h for h in self.recents if h.upper() != hote.upper()])[:NB_POSTES_RECENTS]
@@ -297,6 +300,19 @@ class OutilsPoste(ttk.Frame):
             self._ajouter_recent(hote)
             self.var_statut.set(f"Ping continu vers {hote} lancé.")
 
+    def ip(self):
+        """Diagnostic IP du poste dans OSCAR (nom de poste uniquement, comme CS Tools)."""
+        lu = self._lire_hote()
+        if not lu:
+            return
+        hote, genre = lu
+        if genre != "NOM":
+            self.app.error("Diagnostic IP", "Le diagnostic OSCAR n'accepte qu'un nom de poste, pas une adresse IP.")
+            return
+        ouvrir_url(OSCAR_DIAG.format(hote=hote))
+        self._ajouter_recent(hote)
+        self.var_statut.set(f"Diagnostic OSCAR de {hote} ouvert.")
+
     def relancer_service_pmad(self):
         if not self._compte_requis():
             return
@@ -341,7 +357,7 @@ class OutilsPoste(ttk.Frame):
             self.app.compte_poste = compte
             self._maj_compte()
             self.var_statut.set(f"Connecté en tant que {DOMAINE}\\{utilisateur}.")
-            self.recherche.entry.focus_set()
+            self._focus_saisie()
 
         self._en_arriere_plan(tache, fin)
 
