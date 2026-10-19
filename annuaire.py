@@ -65,6 +65,8 @@ _ldap.ldap_search_sW.argtypes = [_p, wintypes.LPCWSTR, wintypes.ULONG, wintypes.
 _ldap.ldap_search_sW.restype = wintypes.ULONG
 _ldap.ldap_first_entry.argtypes = [_p, _p]
 _ldap.ldap_first_entry.restype = _p
+_ldap.ldap_next_entry.argtypes = [_p, _p]
+_ldap.ldap_next_entry.restype = _p
 _ldap.ldap_get_valuesW.argtypes = [_p, _p, wintypes.LPCWSTR]
 _ldap.ldap_get_valuesW.restype = ctypes.POINTER(wintypes.LPWSTR)
 _ldap.ldap_value_freeW.argtypes = [ctypes.POINTER(wintypes.LPWSTR)]
@@ -118,8 +120,8 @@ def _erreur(code_ldap, ld=None):
     return OSError(code, ctypes.FormatError(code).strip() + (f" ({detail})" if detail else ""))
 
 
-def _rechercher(ld, base, portee, filtre, attribut):
-    attributs = (wintypes.LPWSTR * 2)(attribut, None)
+def _rechercher(ld, base, portee, filtre, *noms_attributs):
+    attributs = (wintypes.LPWSTR * (len(noms_attributs) + 1))(*noms_attributs, None)
     resultat = ctypes.c_void_p()
     code = _ldap.ldap_search_sW(ld, base, portee, filtre, attributs, 0, ctypes.byref(resultat))
     if code != LDAP_SUCCESS:
@@ -131,8 +133,10 @@ def _rechercher(ld, base, portee, filtre, attribut):
 
 def _valeur_texte(ld, resultat, attribut):
     entree = _ldap.ldap_first_entry(ld, resultat)
-    if not entree:
-        return None
+    return _valeur_entree(ld, entree, attribut) if entree else None
+
+
+def _valeur_entree(ld, entree, attribut):
     valeurs = _ldap.ldap_get_valuesW(ld, entree, attribut)
     if not valeurs:
         return None
@@ -207,21 +211,58 @@ def groupes_du_compte(utilisateur, domaine, mot_de_passe, delai=10):
         jetons = _rechercher(ld, dn, LDAP_SCOPE_BASE, "(objectClass=*)", "tokenGroups")
         try:
             entree = _ldap.ldap_first_entry(ld, jetons)
-            valeurs = _ldap.ldap_get_values_lenW(ld, entree, "tokenGroups") if entree else None
-            groupes = []
-            if valeurs:
-                try:
-                    i = 0
-                    while valeurs[i]:
-                        berval = valeurs[i].contents
-                        nom = _nom_du_sid(ctypes.string_at(berval.bv_val, berval.bv_len))
-                        if nom:
-                            groupes.append(nom)
-                        i += 1
-                finally:
-                    _ldap.ldap_value_free_len(valeurs)
+            sids = _valeurs_binaires(ld, entree, "tokenGroups") if entree else []
         finally:
             _ldap.ldap_msgfree(jetons)
-        return groupes
+        return _noms_des_groupes(ld, base, sids)
     finally:
         _ldap.ldap_unbind(ld)
+
+
+def echapper_sid(octets):
+    """SID binaire -> valeur de filtre LDAP (chaque octet en \\xx)."""
+    return "".join(f"\\{octet:02x}" for octet in octets)
+
+
+def _valeurs_binaires(ld, entree, attribut):
+    valeurs = _ldap.ldap_get_values_lenW(ld, entree, attribut)
+    if not valeurs:
+        return []
+    try:
+        resultat, i = [], 0
+        while valeurs[i]:
+            berval = valeurs[i].contents
+            resultat.append(ctypes.string_at(berval.bv_val, berval.bv_len))
+            i += 1
+        return resultat
+    finally:
+        _ldap.ldap_value_free_len(valeurs)
+
+
+def _noms_des_groupes(ld, base, sids, taille_lot=50):
+    """Noms des groupes en quelques recherches LDAP groupées (au lieu d'un aller-retour
+    vers le contrôleur par groupe). Les SID non trouvés ainsi sont résolus un par un."""
+    noms = {}
+    try:
+        for debut in range(0, len(sids), taille_lot):
+            lot = sids[debut:debut + taille_lot]
+            filtre = "(|" + "".join(f"(objectSid={echapper_sid(s)})" for s in lot) + ")"
+            resultat = _rechercher(ld, base, LDAP_SCOPE_SUBTREE, filtre, "sAMAccountName", "objectSid")
+            try:
+                entree = _ldap.ldap_first_entry(ld, resultat)
+                while entree:
+                    sid = _valeurs_binaires(ld, entree, "objectSid")
+                    nom = _valeur_entree(ld, entree, "sAMAccountName")
+                    if sid and nom:
+                        noms[sid[0]] = nom
+                    entree = _ldap.ldap_next_entry(ld, entree)
+            finally:
+                _ldap.ldap_msgfree(resultat)
+    except OSError:
+        noms = {}   # recherche groupée refusée : tout est résolu un par un
+    groupes = []
+    for sid in sids:
+        nom = noms.get(sid) or _nom_du_sid(sid)
+        if nom:
+            groupes.append(nom)
+    return groupes

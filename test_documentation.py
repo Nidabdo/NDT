@@ -93,6 +93,12 @@ class DocumentationTest(unittest.TestCase):
                         self.assertGreater(docs.content.winfo_width(),250)
                         self.assertGreater(docs.listbox.winfo_width(),180)
                         self.assertEqual(docs.content.cget('background'),app.p['surface'])
+                        # L'écran est gardé en mémoire : il retrouve la recherche du passage précédent.
+                        if theme!='light' or size!='800x600':
+                            self.assertIs(docs,premier)
+                            self.assertEqual(docs.query.get(),'connexion')
+                        premier=docs
+                        docs.query.set('')
                         docs.system.set('Linux');app.update()
                         self.assertEqual({a['id'] for a in docs.results},{'2','3'})
                         docs.query.set('connexion');app.update()

@@ -45,12 +45,26 @@ class ModelesTest(unittest.TestCase):
 
     def test_variables_et_destinataires(self):
         par_id = {m["id"]: m for m in MODELES_INITIAUX}
-        self.assertEqual(variables_a_saisir(par_id["j0"]), ["TELEPHONE"])
-        self.assertEqual(variables_a_saisir(par_id["j4-a"]), [])
-        self.assertEqual(variables_a_saisir(par_id["j7-a"]), ["DEMANDEUR"])
+        self.assertEqual(variables_a_saisir(par_id["j0"]), ["TELEPHONE", "OBJET_CONTACT"])
+        self.assertEqual(variables_a_saisir(par_id["j4-a"]), ["OBJET_CONTACT"])
+        self.assertEqual(variables_a_saisir(par_id["j7-a"]), ["DEMANDEUR", "OBJET_CONTACT"])
+        self.assertTrue(all("Objet de la prise de contact : {OBJET_CONTACT}\n" in m["texte"] for m in MODELES_INITIAUX))
         self.assertEqual({m["id"] for m in MODELES_INITIAUX if m["destinataire"] == "tiers"}, {"j7-a", "j14-s"})
         self.assertIn("d'ici 3 jours", par_id["j4-a"]["texte"])
         self.assertIn("d'ici 7 jours", par_id["j7-s"]["texte"])
+
+    def test_migration_objet_de_la_prise_de_contact(self):
+        ancien = dict(MODELES_INITIAUX[0], texte="Bonjour\n\nObjet de la prise de contact :\n\nMerci,")
+        with tempfile.TemporaryDirectory() as dossier:
+            chemin = Path(dossier) / "relances.json"
+            chemin.write_text(json.dumps({"version": 1, "modeles": [ancien]}), encoding="utf-8")
+            texte = charger_modeles(chemin)[0]["texte"]
+            self.assertEqual(texte, "Bonjour\n\nObjet de la prise de contact : {OBJET_CONTACT}\n\nMerci,")
+            enregistrer_modeles(chemin, [ancien])   # version 2 : variable retirée volontairement
+            self.assertEqual(json.loads(chemin.read_text(encoding="utf-8"))["version"], 2)
+            self.assertEqual(charger_modeles(chemin)[0]["texte"], ancien["texte"])
+        self.assertEqual(remplir("Objet de la prise de contact : {OBJET_CONTACT}", {"OBJET_CONTACT": "EXEMPLE RELANCE"}),
+                         "Objet de la prise de contact : EXEMPLE RELANCE")
 
     def test_remplissage(self):
         texte = remplir("Demande {TICKET} au {TELEPHONE} ({AUTRE})", {"TICKET": "123", "TELEPHONE": " 04 "})
@@ -195,7 +209,7 @@ class EcranTest(unittest.TestCase):
         ecran.choisir_type("assistance")
 
         def libelles():
-            return [str(w.cget("text")) for w in ecran.champs.winfo_children() if w.winfo_class() == "TLabel"]
+            return " | ".join(str(w.cget("text")) for w in ecran.champs.winfo_children() if w.winfo_class() == "TLabel")
         self.boutons(ecran)["J0"].invoke()
         self.assertNotIn("Correspondant informatique", libelles())
         self.boutons(ecran)["J2"].invoke()
