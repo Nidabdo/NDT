@@ -23,20 +23,22 @@ TYPES = {"assistance": "Demande d'assistance", "service": "Demande de service"}
 TYPES_COURTS = {"assistance": "Assistance", "service": "Service"}
 DESTINATAIRES = {"demandeur": "Le demandeur", "tiers": "Une autre personne (manager, collègue…)"}
 VARIABLE_TICKET = "TICKET"          # remplie automatiquement avec le numéro saisi
-LIBELLES = {"TELEPHONE": "Téléphone", "DEMANDEUR": "Demandeur (nom)"}   # sinon : nom de la variable
+LIBELLES = {"TELEPHONE": "Téléphone", "DEMANDEUR": "Demandeur (nom)",
+            "OBJET_CONTACT": "Objet de la prise de contact"}   # sinon : nom de la variable
+VERSION_FICHIER = 2   # 2 : ligne « Objet de la prise de contact : {OBJET_CONTACT} »
 ADRESSE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 _TENTATIVE = ("Bonjour, \n\nNous avons tenté de vous contacter ce jour pour la demande {TICKET} à votre nom.\n"
               "Notre dernière tentative de prise de contact au numéro {TELEPHONE} a échouée.\n\n"
-              "Objet de la prise de contact :\n\n"
+              "Objet de la prise de contact : {OBJET_CONTACT}\n\n"
               "Merci de contacter l'infogérance en appelant le 111 ou de nous communiquer vos disponibilités "
               "par mail à l'adresse suivante : csig@cea.fr, en précisant le numéro de votre demande. \n\nMerci,")
 _CLOTURE = ("Bonjour, \n\nNous avons tenté de vous contacter ce jour pour la demande {TICKET} à votre nom.\n\n"
-            "Objet de la prise de contact :\n\n"
+            "Objet de la prise de contact : {OBJET_CONTACT}\n\n"
             "Conformément au processus en vigueur au CEA nous vous informons que sans nouvelle de votre part "
             "d'ici {DELAI} jours votre de demande sera clôturée. \n\nMerci pour la prise en compte de ce mail.")
 _TIERS = ("Bonjour, \n\nNous avons tenté de prendre contact avec M. / Mme {DEMANDEUR} pour la demande N°{TICKET}. \n\n"
-          "Objet de la prise de contact :\n\n"
+          "Objet de la prise de contact : {OBJET_CONTACT}\n\n"
           "Nos tentatives de prise de contact ayant échouées pouvez-vous vous rapprocher de M. / Mme {DEMANDEUR} "
           "afin qu'il/elle nous contacte pour le traitement de sa demande s'il vous plait ?")
 
@@ -110,13 +112,27 @@ def charger_modeles(path):
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as err:
         raise ModelesInvalides(f"Le fichier {path.name} est illisible : {err}") from err
-    if not isinstance(data, dict) or data.get("version") != 1 or not isinstance(data.get("modeles"), list):
+    if (not isinstance(data, dict) or data.get("version") not in (1, VERSION_FICHIER)
+            or not isinstance(data.get("modeles"), list)):
         raise ModelesInvalides(f"Le fichier {path.name} n'est pas un fichier de relances NDT.")
-    return _valider(data["modeles"])
+    modeles = _valider(data["modeles"])
+    if data["version"] == 1:
+        modeles = [_ajouter_objet_contact(m) for m in modeles]
+    return modeles
+
+
+def _ajouter_objet_contact(modele):
+    """Version 1 -> 2 : la ligne « Objet de la prise de contact : » reçoit son champ à remplir.
+    Faite une seule fois : un modèle enregistré ensuite (version 2) n'est plus modifié."""
+    if "{OBJET_CONTACT}" in modele["texte"]:
+        return modele
+    texte = re.sub(r"Objet de la prise de contact\s*:[ \t]*", "Objet de la prise de contact : {OBJET_CONTACT}",
+                   modele["texte"], count=1)
+    return dict(modele, texte=texte)
 
 
 def enregistrer_modeles(path, modeles):
-    ecrire_json_atomique(path, {"version": 1, "modeles": modeles})
+    ecrire_json_atomique(path, {"version": VERSION_FICHIER, "modeles": modeles})
 
 
 # ---------- Interface ----------
@@ -163,7 +179,14 @@ class Relance(ttk.Frame):
         self.ligne_relances = ttk.Frame(corps, style="Surface.TFrame")
         self.ligne_relances.pack(fill="x", pady=(16, 0))
         self.indication = tk.StringVar()
-        ttk.Label(corps, textvariable=self.indication, style="Card.Muted.TLabel").pack(anchor="w", pady=(10, 0))
+        etiquette = ttk.Label(corps, textvariable=self.indication, style="Card.Muted.TLabel")
+
+        def afficher_indication(*_):   # masquée quand vide : la place revient à l'aperçu du mail
+            if self.indication.get():
+                etiquette.pack(anchor="w", pady=(10, 0))
+            else:
+                etiquette.pack_forget()
+        self.indication.trace_add("write", afficher_indication)
 
         # --- Aperçu du mail (affiché après le choix d'une relance) ---
         self.apercu = RoundedPanel(self, app, padding=22)
@@ -234,29 +257,27 @@ class Relance(ttk.Frame):
         for widget in self.champs.winfo_children():
             widget.destroy()
         self.titre_apercu.configure(text=f"Relance {modele['nom']} – {TYPES[self.type_]}")
-        ligne = 0
+        # Champs sur deux colonnes, pour laisser de la hauteur à l'aperçu du message.
         libelle = "À  (demandeur)" if modele["destinataire"] == "demandeur" else "À  (personne à solliciter)"
-        ttk.Label(self.champs, text=libelle, style="Card.TLabel").grid(row=ligne, column=0, sticky="w", padx=(0, 12), pady=3)
-        ttk.Entry(self.champs, textvariable=self.adresses[modele["destinataire"]]).grid(row=ligne, column=1, sticky="ew", pady=3)
+        champs = [(libelle, self.adresses[modele["destinataire"]])]
         if modele["correspondant"]:
-            ligne += 1
-            ttk.Label(self.champs, text="Correspondant informatique", style="Card.TLabel").grid(
-                row=ligne, column=0, sticky="w", padx=(0, 12), pady=3)
-            ttk.Entry(self.champs, textvariable=self.var_correspondant).grid(row=ligne, column=1, sticky="ew", pady=3)
-            ttk.Label(self.champs, text="en copie, facultatif", style="Card.Muted.TLabel").grid(
-                row=ligne, column=2, sticky="w", padx=(8, 0))
+            champs.append(("Correspondant informatique (en copie, facultatif)", self.var_correspondant))
         for nom in variables_a_saisir(modele):
-            ligne += 1
             if nom not in self.valeurs:
                 self.valeurs[nom] = tk.StringVar()
                 self.valeurs[nom].trace_add("write", lambda *_: self._regenerer())
-            ttk.Label(self.champs, text=LIBELLES.get(nom, libelle_variable(nom)), style="Card.TLabel").grid(
-                row=ligne, column=0, sticky="w", padx=(0, 12), pady=3)
-            ttk.Entry(self.champs, textvariable=self.valeurs[nom]).grid(row=ligne, column=1, sticky="ew", pady=3)
-        ligne += 1
-        ttk.Label(self.champs, text="Objet", style="Card.TLabel").grid(row=ligne, column=0, sticky="w", padx=(0, 12), pady=3)
+            champs.append((LIBELLES.get(nom, libelle_variable(nom)), self.valeurs[nom]))
+        for colonne in (1, 3):
+            self.champs.columnconfigure(colonne, weight=1, uniform="champs")
+        for index, (texte, variable) in enumerate(champs):
+            ligne, colonne = divmod(index, 2)
+            ttk.Label(self.champs, text=texte, style="Card.TLabel", wraplength=230).grid(
+                row=ligne, column=2 * colonne, sticky="w", padx=(0 if colonne == 0 else 16, 10), pady=3)
+            ttk.Entry(self.champs, textvariable=variable).grid(row=ligne, column=2 * colonne + 1, sticky="ew", pady=3)
+        ligne = (len(champs) + 1) // 2
+        ttk.Label(self.champs, text="Objet", style="Card.TLabel").grid(row=ligne, column=0, sticky="w", padx=(0, 10), pady=3)
         self.var_objet = tk.StringVar()
-        ttk.Entry(self.champs, textvariable=self.var_objet).grid(row=ligne, column=1, sticky="ew", pady=3)
+        ttk.Entry(self.champs, textvariable=self.var_objet).grid(row=ligne, column=1, columnspan=3, sticky="ew", pady=3)
         self._maj()
 
     # ----- Texte du mail -----

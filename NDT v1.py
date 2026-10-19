@@ -277,21 +277,12 @@ class App(tk.Tk):
 
         self.mode = None   # "question" quand le questionnaire est affiché
         self.mode_compact = False   # barre façon CS Tools, au premier plan
+        self._pages = {}            # écrans construits une fois, puis masqués / réaffichés
         self.barre_compacte = None
 
-        self.build_header()
+        # Styles d'abord : la fenêtre de connexion en a besoin. L'interface principale n'est
+        # construite qu'après la connexion, pour que celle-ci s'affiche au plus vite.
         self.apply_theme()
-        self.container = ttk.Frame(self.workspace, padding=(32, 20))
-        self.container.pack(fill="both", expand=True)
-        self.bind('<Configure>', self.responsive_layout)
-
-        # Raccourcis clavier du questionnaire
-        self.bind("<Return>", self.on_return)
-        self.bind("<KP_Enter>", self.on_return)
-        self.bind("<Up>", lambda _e: self.on_arrow(-1))
-        self.bind("<Down>", lambda _e: self.on_arrow(1))
-        self.bind("<Key>", self.on_key)
-        self.bind("<Control-Shift-A>", lambda _e: self.open_admin())
 
         if session is None:
             try:
@@ -311,6 +302,21 @@ class App(tk.Tk):
             if session is None:   # « Quitter »
                 self.destroy()
                 return
+
+        self.build_header()
+        self.theme_btn.configure(text="Mode clair" if self.theme == "dark" else "Mode sombre")
+        self.container = ttk.Frame(self.workspace, padding=(32, 20))
+        self.container.pack(fill="both", expand=True)
+        self.bind('<Configure>', self.responsive_layout)
+
+        # Raccourcis clavier du questionnaire
+        self.bind("<Return>", self.on_return)
+        self.bind("<KP_Enter>", self.on_return)
+        self.bind("<Up>", lambda _e: self.on_arrow(-1))
+        self.bind("<Down>", lambda _e: self.on_arrow(1))
+        self.bind("<Key>", self.on_key)
+        self.bind("<Control-Shift-A>", lambda _e: self.open_admin())
+
         self.session = session
         # Le compte saisi au lancement sert aussi aux outils poste (PMAD, C$...).
         self.compte_poste = (session.login, session.mot_de_passe) if session.mot_de_passe else None
@@ -324,6 +330,7 @@ class App(tk.Tk):
 
     def appliquer_droits(self):
         """Masque les écrans non autorisés et affiche qui est connecté."""
+        self.vider_pages()
         for boutons in (self.nav_buttons, self.compact_nav_buttons):
             for cle, bouton in boutons.items():
                 bouton.pack_forget()
@@ -377,6 +384,7 @@ class App(tk.Tk):
             if isinstance(widget, tk.Toplevel):
                 widget.destroy()
         self.clear()
+        self.vider_pages()   # rien de la session précédente ne doit rester affichable
         self.session = None
         self.compte_poste = None
         self.session_user = None
@@ -518,34 +526,46 @@ class App(tk.Tk):
         self.clear()
         self.session_user = None
         self.set_screen('documentation', 'Documentation')
-        ttk.Label(self.container,text='Documentation',style='Title.TLabel').pack(anchor='w',pady=(0,8))
-        self.documentation = Documentation(self.container,self,DOCUMENTATION_FILE)
-        self.documentation.pack(fill='both',expand=True)
+
+        def construire(page):
+            ttk.Label(page, text='Documentation', style='Title.TLabel').pack(anchor='w', pady=(0, 8))
+            self.documentation = Documentation(page, self, DOCUMENTATION_FILE)
+            self.documentation.pack(fill='both', expand=True)
+        self._page('documentation', construire)
 
     def show_scripts(self):
         self.clear()
         self.session_user = None
         self.set_screen('scripts', 'Scripts')
-        ttk.Label(self.container, text='Scripts', style='Title.TLabel').pack(anchor='w', pady=(0, 8))
-        self.scripts_bt = ScriptsBT(self.container, self, SCRIPTS_FILE, edition=self.autorise('scripts_edition'))
-        self.scripts_bt.pack(fill='both', expand=True)
+
+        def construire(page):
+            ttk.Label(page, text='Scripts', style='Title.TLabel').pack(anchor='w', pady=(0, 8))
+            self.scripts_bt = ScriptsBT(page, self, SCRIPTS_FILE, edition=self.autorise('scripts_edition'))
+            self.scripts_bt.pack(fill='both', expand=True)
+        self._page('scripts', construire)
 
     def show_relance(self):
         self.clear()
         self.session_user = None
         self.set_screen('relance', 'Relance')
-        ttk.Label(self.container, text='Relance', style='Title.TLabel').pack(anchor='w', pady=(0, 8))
-        self.relance = Relance(self.container, self, RELANCES_FILE, edition=self.autorise('relances_edition'))
-        self.relance.pack(fill='both', expand=True)
+
+        def construire(page):
+            ttk.Label(page, text='Relance', style='Title.TLabel').pack(anchor='w', pady=(0, 8))
+            self.relance = Relance(page, self, RELANCES_FILE, edition=self.autorise('relances_edition'))
+            self.relance.pack(fill='both', expand=True)
+        self._page('relance', construire)
         self.relance.champ_ticket.focus_set()
 
     def show_outils(self):
         self.clear()
         self.session_user = None
         self.set_screen('outils', 'Outils poste')
-        ttk.Label(self.container, text='Outils poste', style='Title.TLabel').pack(anchor='w', pady=(0, 8))
-        self.outils_poste = OutilsPoste(self.container, self)
-        self.outils_poste.pack(fill='both', expand=True)
+
+        def construire(page):
+            ttk.Label(page, text='Outils poste', style='Title.TLabel').pack(anchor='w', pady=(0, 8))
+            self.outils_poste = OutilsPoste(page, self)
+            self.outils_poste.pack(fill='both', expand=True)
+        self._page('outils', construire)
         self.outils_poste.recherche.entry.focus_set()
 
     def apply_theme(self):
@@ -689,8 +709,9 @@ class App(tk.Tk):
                     troughcolor=p["tab"], bordercolor=p["tab"],
                     lightcolor=p["accent"], darkcolor=p["accent"], thickness=8)
 
-        self.theme_btn.configure(
-            text="Mode clair" if self.theme == "dark" else "Mode sombre")
+        if hasattr(self, "theme_btn"):   # absent avant la connexion
+            self.theme_btn.configure(
+                text="Mode clair" if self.theme == "dark" else "Mode sombre")
 
     def toggle_theme(self):
         self.theme = "light" if self.theme == "dark" else "dark"
@@ -698,7 +719,9 @@ class App(tk.Tk):
         self.settings["theme"] = self.theme
         save_settings(self.settings)
         self.apply_theme()
-        self.repaint(self)
+        self.repaint(self)   # pages masquées comprises
+        for page in self._pages.values():
+            page.theme_dessine = self.theme
 
     # Widgets tk "classiques" (Text, Listbox...) : coloriés à la main
     def paint(self, w):
@@ -873,16 +896,45 @@ class App(tk.Tk):
     # ===== Navigation =====
     def clear(self):
         self.mode = None
+        pages = set(self._pages.values())
         for widget in self.container.winfo_children():
-            widget.destroy()
+            if widget in pages:
+                widget.pack_forget()   # gardée pour un réaffichage instantané
+            else:
+                widget.destroy()
+
+    def _page(self, cle, construire):
+        """Affiche l'écran `cle` : construit au premier affichage, puis seulement réaffiché
+        (il retrouve son état : recherche, saisie en cours...)."""
+        page = self._pages.get(cle)
+        if page is None or not page.winfo_exists():
+            page = ttk.Frame(self.container)
+            construire(page)
+            page.theme_dessine = self.theme
+            self._pages[cle] = page
+        elif page.theme_dessine != self.theme:
+            self.repaint(page)   # thème changé pendant que la page était masquée
+            page.theme_dessine = self.theme
+        page.pack(fill="both", expand=True)
+        return page
+
+    def vider_pages(self):
+        """Oublie les écrans gardés : à faire quand les droits ou les données changent."""
+        for page in self._pages.values():
+            if page.winfo_exists():
+                page.destroy()
+        self._pages.clear()
 
     # ===== Menu principal =====
     def show_home(self):
         self.session_user = None
         self.clear()
         self.set_screen("home", "Pause Cafew")
-        self.pause_cafew = PauseCafew(self.container, self)
-        self.pause_cafew.pack(fill="both", expand=True)
+
+        def construire(page):
+            self.pause_cafew = PauseCafew(page, self)
+            self.pause_cafew.pack(fill="both", expand=True)
+        self._page("home", construire)
 
     def save_setting(self, key, value):
         self.settings[key] = value
@@ -1258,6 +1310,7 @@ class App(tk.Tk):
 
     def show_admin(self):
         self.clear()
+        self.vider_pages()   # la documentation peut être modifiée ici : la reconstruire ensuite
         self.set_screen("admin", "Coordination")
         f = self.container
 

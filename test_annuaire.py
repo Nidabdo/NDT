@@ -29,6 +29,50 @@ class AnalyseTest(unittest.TestCase):
         self.assertIn("expiré", message_erreur(OSError(1793, "x")))
 
 
+class GroupesTest(unittest.TestCase):
+    """Résolution des noms de groupes : recherches LDAP groupées, secours un par un."""
+
+    def test_echappement_sid(self):
+        self.assertEqual(annuaire.echapper_sid(bytes([1, 5, 0, 0x15])), "\\01\\05\\00\\15")
+
+    def test_recherches_groupees_par_lots(self):
+        sids = [bytes([i]) for i in range(120)]
+        filtres = []
+
+        def rechercher(_ld, _base, _portee, filtre, *_attributs):
+            filtres.append(filtre)
+            return filtre   # le « résultat » transporte le lot, pour la suite simulée
+
+        entrees = {}
+
+        def premiere_entree(_ld, resultat):
+            lot = [s for s in sids if f"(objectSid={annuaire.echapper_sid(s)})" in resultat]
+            entrees[resultat] = lot
+            return (resultat, 0) if lot else None
+
+        def entree_suivante(_ld, entree):
+            resultat, i = entree
+            return (resultat, i + 1) if i + 1 < len(entrees[resultat]) else None
+
+        with patch.object(annuaire, "_rechercher", rechercher), \
+             patch.object(annuaire._ldap, "ldap_first_entry", premiere_entree), \
+             patch.object(annuaire._ldap, "ldap_next_entry", entree_suivante), \
+             patch.object(annuaire._ldap, "ldap_msgfree", lambda _r: 0), \
+             patch.object(annuaire, "_valeurs_binaires", lambda _ld, e, _a: [entrees[e[0]][e[1]]]), \
+             patch.object(annuaire, "_valeur_entree", lambda _ld, e, _a: f"G{entrees[e[0]][e[1]][0]}"), \
+             patch.object(annuaire, "_nom_du_sid") as un_par_un:
+            groupes = annuaire._noms_des_groupes("ld", "DC=intra", sids)
+        self.assertEqual(len(filtres), 3)   # 120 groupes : 3 requêtes au lieu de 120
+        self.assertEqual(groupes, [f"G{i}" for i in range(120)])
+        un_par_un.assert_not_called()
+
+    def test_secours_un_par_un(self):
+        with patch.object(annuaire, "_rechercher", side_effect=OSError(5, "refusé")), \
+             patch.object(annuaire, "_nom_du_sid", side_effect=lambda s: None if s == b"x" else s.decode()) as un_par_un:
+            self.assertEqual(annuaire._noms_des_groupes("ld", "DC=intra", [b"a", b"x", b"b"]), ["a", "b"])
+        self.assertEqual(un_par_un.call_count, 3)
+
+
 class SessionTest(unittest.TestCase):
     def test_annuaire_utilise_sans_session_locale(self):
         with patch.object(annuaire, "groupes_du_compte", return_value=["GRE - Infogerance_BT - Admin"]), \
