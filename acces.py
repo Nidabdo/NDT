@@ -16,10 +16,12 @@
 #    "documentation"  procédures
 #    "outils"         outils poste : prise en main, ping, C$ / D$...
 #    "scripts"        scripts du bureau technique (consulter, remplir, copier)
+#    "relance"        mails de relance des tickets (J0, J2, J4, J7, J14)
 #    "coordination"   espace de coordination (demande aussi son mot de passe)
 #
 #  Droits possibles (ils se placent dans un profil comme un écran) :
-#    "scripts_edition"  ajouter, modifier et supprimer des scripts
+#    "scripts_edition"   ajouter, modifier et supprimer des scripts
+#    "relances_edition"  ajouter, modifier et supprimer des modèles de relance
 # =====================================================================
 
 
@@ -30,9 +32,9 @@
 PROFILS = {
     "Minimal":    ["accueil", "diagnostic"],
     "Technicien": ["accueil", "diagnostic", "documentation"],
-    "Support":    ["accueil", "diagnostic", "documentation", "outils", "scripts"],
-    "Complet":    ["accueil", "diagnostic", "documentation", "outils", "scripts",
-                   "scripts_edition", "coordination"],
+    "Support":    ["accueil", "diagnostic", "documentation", "outils", "scripts", "relance"],
+    "Complet":    ["accueil", "diagnostic", "documentation", "outils", "scripts", "relance",
+                   "scripts_edition", "relances_edition", "coordination"],
 }
 
 

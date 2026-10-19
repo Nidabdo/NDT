@@ -26,6 +26,7 @@ from documentation import Documentation, ArticleList
 from outils_poste import OutilsPoste
 from pause_cafew import DonneesInvalides, PauseCafew, TuileOutil, verifier_donnees
 from scripts_bt import ScriptsBT
+from relance import Relance
 from diagnostic_form import DiagnosticForm, RoundedField, RoundedPanel, SearchBox, cercle, rounded, style_rounded_button
 
 # Compte personnel, non affiché dans l'interface de connexion.
@@ -44,13 +45,15 @@ SETTINGS_FILE = BASE_DIR / "settings.json"
 AUTH_FILE = BASE_DIR / "coordination_auth.json"
 DOCUMENTATION_FILE = BASE_DIR / "documentation.json"
 SCRIPTS_FILE = BASE_DIR / "scripts.json"
+RELANCES_FILE = BASE_DIR / "relances.json"
 
 DEFAULT_TEMPLATE = "RÉSULTAT DU DIAGNOSTIC\n\n{reponses}"
 RESERVED_TAGS = {"reponses"}
 NOT_ANSWERED = ""
 FONT = "Segoe UI"
 NAV_ITEMS = (("Accueil", "home"), ("Diagnostic", "question"),
-             ("Documentation", "documentation"), ("Outils poste", "outils"), ("Scripts", "scripts"))
+             ("Documentation", "documentation"), ("Outils poste", "outils"), ("Scripts", "scripts"),
+             ("Relance", "relance"))
 
 PALETTES = {
     "light": {
@@ -460,7 +463,7 @@ class App(tk.Tk):
         elif self.diagnostic_engage():
             if not self.confirm("Quitter le diagnostic", "Quitter ce parcours ? Vos réponses seront perdues.", yes="Quitter", no="Continuer"):
                 return
-        {"home": self.show_home, "question": self.start_user, "admin": self.open_admin, "documentation":self.show_documentation, "outils": self.show_outils, "scripts": self.show_scripts}[target]()
+        {"home": self.show_home, "question": self.start_user, "admin": self.open_admin, "documentation":self.show_documentation, "outils": self.show_outils, "scripts": self.show_scripts, "relance": self.show_relance}[target]()
 
     def show_documentation(self):
         self.clear()
@@ -477,6 +480,15 @@ class App(tk.Tk):
         ttk.Label(self.container, text='Scripts', style='Title.TLabel').pack(anchor='w', pady=(0, 8))
         self.scripts_bt = ScriptsBT(self.container, self, SCRIPTS_FILE, edition=self.autorise('scripts_edition'))
         self.scripts_bt.pack(fill='both', expand=True)
+
+    def show_relance(self):
+        self.clear()
+        self.session_user = None
+        self.set_screen('relance', 'Relance')
+        ttk.Label(self.container, text='Relance', style='Title.TLabel').pack(anchor='w', pady=(0, 8))
+        self.relance = Relance(self.container, self, RELANCES_FILE, edition=self.autorise('relances_edition'))
+        self.relance.pack(fill='both', expand=True)
+        self.relance.champ_ticket.focus_set()
 
     def show_outils(self):
         self.clear()
