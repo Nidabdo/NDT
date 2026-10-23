@@ -31,8 +31,8 @@
 # ---------------------------------------------------------------------
 PROFILS = {
     "Minimal":    ["accueil", "diagnostic"],
-    "Technicien": ["accueil", "diagnostic", "documentation"],
-    "Support":    ["accueil", "diagnostic", "documentation", "outils", "scripts", "relance"],
+    "FO":         ["accueil", "diagnostic", "documentation", "outils", "relance"],
+    "BO":         ["accueil", "diagnostic", "documentation", "outils", "scripts", "relance"],
     "Complet":    ["accueil", "diagnostic", "documentation", "outils", "scripts", "relance",
                    "scripts_edition", "relances_edition", "coordination"],
 }
@@ -50,7 +50,12 @@ PROFILS = {
 #       de distribution).
 # ---------------------------------------------------------------------
 UTILISATEURS = {
-    "GRE - Infogerance_BT - Admin": "Support",
+    "LR782730":   "BO",
+    "LB771989":   "BO",
+    "TC774837":   "BO",
+    "A-LR782730": "BO",
+    "A-LB771989": "BO",
+    "A-TC774837": "BO",
     "NL767921":   "Complet",
     "RG768446":   "Complet",
     "A-RG768446": "Complet",
