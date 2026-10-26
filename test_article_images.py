@@ -85,7 +85,7 @@ class ImageEditorIntegrationTest(unittest.TestCase):
                     win.attributes('-alpha',0);win.geometry('640x600');app.update()
                     next(w for w in descendants(win) if type(w)==ttk.Entry).insert(0,'Capture')
                     with patch('article_images.ImageGrab.grabclipboard',return_value=Image.new('RGB',(300,150),'red')):win.image_editor.paste()
-                    save=next(w for w in descendants(win) if isinstance(w,ttk.Button) and w.cget('text')=='Enregistrer l’article')
+                    save=next(w for w in descendants(win) if isinstance(w,ttk.Button) and w.cget('text')=='Enregistrer le logiciel')
                     self.assertGreater(win.image_editor.text.winfo_height(),80)
                     self.assertLessEqual(save.winfo_rooty()+save.winfo_height(),win.winfo_rooty()+win.winfo_height())
                     save.invoke();saved=load_articles(path)[0]

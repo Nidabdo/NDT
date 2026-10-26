@@ -23,6 +23,7 @@ from connexion import demander_session
 from parcours_editor import ParcoursEditor
 from coordination_auth import verify_coordinateur, save_coordinateur_password
 from documentation import Documentation, ArticleList
+from diagnostic_form import SectionNavigation
 from outils_poste import OutilsPoste
 from pause_cafew import DonneesInvalides, PauseCafew, TuileOutil, verifier_donnees
 from scripts_bt import ScriptsBT
@@ -53,7 +54,7 @@ RESERVED_TAGS = {"reponses"}
 NOT_ANSWERED = ""
 FONT = "Segoe UI"
 NAV_ITEMS = (("Accueil", "home"), ("Diagnostic", "question"),
-             ("Documentation", "documentation"), ("Outils poste", "outils"), ("Scripts", "scripts"),
+             ("Wiki BO", "documentation"), ("Outils poste", "outils"), ("Scripts", "scripts"),
              ("Relance", "relance"))
 
 PALETTES = {
@@ -525,10 +526,10 @@ class App(tk.Tk):
     def show_documentation(self):
         self.clear()
         self.session_user = None
-        self.set_screen('documentation', 'Documentation')
+        self.set_screen('documentation', 'Wiki BO')
 
         def construire(page):
-            ttk.Label(page, text='Documentation', style='Title.TLabel').pack(anchor='w', pady=(0, 8))
+            ttk.Label(page, text='Wiki BO', style='Title.TLabel').pack(anchor='w', pady=(0, 8))
             self.documentation = Documentation(page, self, DOCUMENTATION_FILE)
             self.documentation.pack(fill='both', expand=True)
         self._page('documentation', construire)
@@ -1319,11 +1320,11 @@ class App(tk.Tk):
         ttk.Label(top, text="Coordination", style="Title.TLabel").pack(side="left")
         ttk.Button(top, text="Se déconnecter", command=self.leave_admin).pack(side="right")
 
-        ttk.Label(f, text="Gérez les parcours, les procédures et les accès depuis cet espace.",
+        ttk.Label(f, text="Gérez les parcours, les logiciels et les accès depuis cet espace.",
                   style="Muted.TLabel", wraplength=860, justify="left").pack(
             anchor="w", pady=(8, 0))
 
-        notebook = ttk.Notebook(f)
+        notebook = SectionNavigation(f)
         notebook.pack(fill="both", expand=True, pady=(16, 0))
         self.notebook = notebook
         tab_q = ttk.Frame(notebook, padding=(0, 16, 0, 0))
@@ -1331,7 +1332,7 @@ class App(tk.Tk):
         notebook.add(tab_q, text="Parcours")
         notebook.add(tab_t, text="Synthèse")
         tab_docs = ttk.Frame(notebook, padding=(0,16,0,0))
-        notebook.add(tab_docs, text="Documentation")
+        notebook.add(tab_docs, text="Wiki BO")
         self.documentation_editor = Documentation(tab_docs,self,DOCUMENTATION_FILE,editable=True)
         self.documentation_editor.pack(fill='both',expand=True)
         tab_account = ttk.Frame(notebook, padding=24)

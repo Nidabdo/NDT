@@ -272,3 +272,32 @@ class DiagnosticForm(ttk.Frame):
                 return
         self.app.history=list(self.path)
         self.app.show_result()
+
+
+class SectionNavigation(ttk.Frame):
+    """Pages indépendantes accessibles par des boutons, sans cadre d'onglets."""
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.bar=ttk.Frame(self)
+        self.bar.pack(fill='x',pady=(0,12))
+        self.pages=[]
+        self.buttons=[]
+        self.current=None
+
+    def add(self, page, text):
+        self.pages.append(page)
+        button=ttk.Button(self.bar,text=text,command=lambda:self.select(page))
+        button.pack(side='left',padx=(0,8))
+        self.buttons.append(button)
+        if self.current is None:self.select(page)
+
+    def select(self, page=None):
+        if page is None:return str(self.current)
+        if isinstance(page,int):page=self.pages[page]
+        if page==self.current:return
+        if self.current is not None:self.current.pack_forget()
+        self.current=page
+        page.pack(fill='both',expand=True)
+        for item,button in zip(self.pages,self.buttons):
+            button.configure(style='Accent.TButton' if item==page else 'TButton')
+        self.event_generate('<<NotebookTabChanged>>')
