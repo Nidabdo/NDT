@@ -1,6 +1,7 @@
 """Éditeur visuel des parcours NDT, sans dépendance externe."""
 import copy
 import tkinter as tk
+from fenetres import Popup, centrer_fenetre
 import uuid
 from tkinter import ttk
 from diagnostic_form import rounded
@@ -193,7 +194,7 @@ class ParcoursEditor(ttk.Frame):
 
     def choose_target(self,index,row):
         q=self.app.questions[index]
-        win=tk.Toplevel(self.app);win.title('Choisir la suite');win.transient(self.app);win.grab_set()
+        win=Popup(self.app);win.title('Choisir la suite');win.transient(self.app);win.grab_set()
         body=ttk.Frame(win,padding=24);body.pack(fill='both',expand=True)
         answer=q['choices'][row] if q['type']=='choice' and row<len(q['choices']) else 'Après la réponse'
         ttk.Label(body,text=f'« {answer} » mène vers…',style='H2.TLabel',wraplength=500).pack(anchor='w',pady=(0,16))
@@ -218,7 +219,7 @@ class ParcoursEditor(ttk.Frame):
 
     def form(self,index):
         old=copy.deepcopy(self.app.questions[index]) if index is not None else {'id':uuid.uuid4().hex[:8],'text':'','type':'choice','choices':[],'routes':[],'required':True,'next':''}
-        win=tk.Toplevel(self.app);win.title('Modifier la question' if index is not None else 'Nouvelle question');win.transient(self.app);win.grab_set()
+        win=Popup(self.app);win.title('Modifier la question' if index is not None else 'Nouvelle question');win.transient(self.app);win.grab_set()
         win.geometry('620x560');win.minsize(540,500)
         body=ttk.Frame(win,padding=24);body.pack(fill='both',expand=True)
         ttk.Label(body,text='Que souhaitez-vous demander ?',style='H2.TLabel').pack(anchor='w')

@@ -5,6 +5,7 @@ import queue
 import subprocess
 import threading
 import tkinter as tk
+from fenetres import Popup, centrer_fenetre
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from tkinter import ttk
@@ -365,7 +366,7 @@ class OutilsPoste(ttk.Frame):
         """Fenêtre de connexion au style de NDT (même construction que App.ask_password)."""
         app = self.app
         resultat = {"v": None}
-        win = tk.Toplevel(app)
+        win = Popup(app)
         win.title("Connexion — Compte blanc")
         win.configure(bg=app.p["bg"])
         win.transient(app)

@@ -2,6 +2,7 @@
 import queue
 import threading
 import tkinter as tk
+from fenetres import Popup, centrer_fenetre
 from tkinter import ttk
 
 import acces
@@ -35,7 +36,7 @@ def demander_session(app):
     """Ouvre la fenêtre de connexion et renvoie une droits.Session, ou None si l'on quitte."""
     resultat = {"session": None}
     resultats = queue.Queue()
-    win = tk.Toplevel(app)
+    win = Popup(app)
     win.title("NDT — Connexion")
     win.configure(bg=app.p["bg"])
     win.resizable(False, False)
@@ -126,11 +127,7 @@ def demander_session(app):
     win.bind("<Escape>", lambda _e: win.destroy())
     win.protocol("WM_DELETE_WINDOW", win.destroy)
 
-    # La fenêtre principale est masquée : on centre sur l'écran.
-    win.update_idletasks()
-    x = (win.winfo_screenwidth() - win.winfo_reqwidth()) // 2
-    y = (win.winfo_screenheight() - win.winfo_reqheight()) // 3
-    win.geometry(f"+{max(x, 0)}+{max(y, 0)}")
+    centrer_fenetre(win)
     win.lift()
     win.focus_force()
     identifiant.focus_set()

@@ -14,6 +14,7 @@ import hmac
 import re
 import sys
 import tkinter as tk
+from fenetres import Popup, centrer_fenetre
 import unicodedata
 import uuid
 from pathlib import Path
@@ -792,12 +793,9 @@ class App(tk.Tk):
 
     # ===== Boîtes de dialogue (aux couleurs du thème) =====
     def _center_modal(self, win):
-        win.update_idletasks()
-        x = self.winfo_rootx() + (self.winfo_width() - win.winfo_width()) // 2
-        y = self.winfo_rooty() + (self.winfo_height() - win.winfo_height()) // 3
-        win.geometry(f"+{max(x, 0)}+{max(y, 0)}")
+        centrer_fenetre(win)
         try:
-            win.wait_visibility()
+            if not win.winfo_viewable():win.wait_visibility()
             win.grab_set()
         except tk.TclError:
             pass
@@ -806,7 +804,7 @@ class App(tk.Tk):
     def _dialog(self, title, message, buttons, cancel=None, default=True):
         """buttons : liste (libellé, valeur, style) affichée de gauche à droite."""
         result = {"v": cancel}
-        win = tk.Toplevel(self)
+        win = Popup(self)
         win.title(title)
         win.configure(bg=self.p["bg"])
         win.transient(self)
@@ -856,7 +854,7 @@ class App(tk.Tk):
 
     def ask_password(self):
         result = {"v": None}
-        win = tk.Toplevel(self)
+        win = Popup(self)
         win.title("Connexion — Coordination")
         win.configure(bg=self.p["bg"])
         win.transient(self)
@@ -1274,7 +1272,7 @@ class App(tk.Tk):
         role = getattr(self, 'session_user', None)
         if role not in ('coordinateur', 'admin'):
             return
-        win = tk.Toplevel(self)
+        win = Popup(self)
         win.title('Mot de passe coordinateur')
         win.transient(self)
         body = ttk.Frame(win, padding=24)
@@ -1428,7 +1426,7 @@ class App(tk.Tk):
         if is_choice and not choices:
             self.warn("Aucune réponse", "Saisissez d'abord les réponses possibles.")
             return
-        win = tk.Toplevel(self)
+        win = Popup(self)
         win.title("Choisir la prochaine question")
         win.geometry("780x520")
         win.minsize(600, 400)
@@ -1732,7 +1730,7 @@ class App(tk.Tk):
             recap.append(f"{i}. {q['text']}\n   → {sample}")
         values["reponses"] = "\n".join(recap) or "(aucune question)"
 
-        win = tk.Toplevel(self)
+        win = Popup(self)
         win.title("Aperçu du message final")
         win.configure(bg=self.p["bg"])
         win.geometry("700x520")

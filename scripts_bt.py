@@ -4,6 +4,7 @@ import json
 import re
 import uuid
 import tkinter as tk
+from fenetres import Popup, centrer_fenetre
 from tkinter import filedialog, ttk
 
 from diagnostic_form import RoundedPanel, SearchBox
@@ -389,7 +390,7 @@ class ScriptsBT(ttk.Frame):
 
     def editer(self, script=None):
         app = self.app
-        win = tk.Toplevel(app)
+        win = Popup(app)
         win.title("Modifier le script" if script else "Nouveau script")
         win.configure(bg=app.p["bg"])
         win.transient(app)

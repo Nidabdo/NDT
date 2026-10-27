@@ -5,6 +5,7 @@ import re
 import threading
 import uuid
 import tkinter as tk
+from fenetres import Popup, centrer_fenetre
 from tkinter import ttk
 
 import envoi_mail
@@ -377,7 +378,7 @@ class Relance(ttk.Frame):
 
     def gerer_modeles(self):
         app = self.app
-        win = tk.Toplevel(app)
+        win = Popup(app)
         win.title("Modèles de relance")
         win.configure(bg=app.p["bg"])
         win.transient(app)
@@ -456,7 +457,7 @@ class Relance(ttk.Frame):
         """Fenêtre d'édition d'un modèle ; renvoie le modèle modifié, ou None si annulé."""
         app = self.app
         resultat = {"modele": None}
-        win = tk.Toplevel(parent)
+        win = Popup(parent)
         win.title("Modifier le modèle" if modele else "Nouveau modèle")
         win.configure(bg=app.p["bg"])
         win.transient(parent)

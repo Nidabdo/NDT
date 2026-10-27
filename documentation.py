@@ -7,6 +7,7 @@ import unicodedata
 import uuid
 import webbrowser
 import tkinter as tk
+from fenetres import Popup, centrer_fenetre
 from tkinter import ttk
 from diagnostic_form import RoundedPanel, SearchBox, rounded, SectionNavigation
 from article_images import ImageDocument, ArticleImageEditor, validate_images
@@ -300,7 +301,7 @@ class Documentation(ttk.Frame):
     def edit_article(self,article=None):
         if not self.can_edit():return
         original=dict(article,images=article.get('images',[]),sources=article.get('sources',[]),licenses=article.get('licenses',[])) if article else dict(id=uuid.uuid4().hex,title='',content='',images=[],sources=[],licenses=[])
-        win=tk.Toplevel(self.app);win.title('Modifier le logiciel' if article else 'Nouveau logiciel');win.transient(self.app);win.grab_set()
+        win=Popup(self.app);win.title('Modifier le logiciel' if article else 'Nouveau logiciel');win.transient(self.app);win.grab_set()
         win.geometry('820x740');win.minsize(640,600)
         body=ttk.Frame(win,padding=22);body.pack(fill='both',expand=True)
         actions=ttk.Frame(body);actions.pack(side='bottom',fill='x',pady=(14,0))
@@ -335,7 +336,7 @@ class Documentation(ttk.Frame):
             selected=license_list.selection()
             if existing and not selected:return
             item=selected[0] if existing else None
-            dialog=tk.Toplevel(win);dialog.title('Licence par service');dialog.transient(win);dialog.grab_set()
+            dialog=Popup(win);dialog.title('Licence par service');dialog.transient(win);dialog.grab_set()
             form=ttk.Frame(dialog,padding=20);form.pack(fill='both',expand=True)
             entries=[]
             for label,value in zip(('Service','Clé de licence'),license_list.item(item,'values') if item else ('','')):
