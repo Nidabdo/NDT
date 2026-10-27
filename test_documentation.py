@@ -27,17 +27,28 @@ class DocumentationTest(unittest.TestCase):
         self.assertEqual(load_articles(self.path),[])
         save_articles(self.path,self.articles)
         self.assertEqual(load_articles(self.path),self.articles)
-        self.assertEqual([a['id'] for a in search_articles(self.articles,'resolution')],['1'])
+        self.assertEqual([a['id'] for a in search_articles(self.articles,'RESEAU')],['1'])
         self.assertEqual(len(search_articles(self.articles)),3)
         self.assertEqual(search_articles(self.articles,'inexistant'),[])
+
+    def test_search_ees_matches_names_only_and_exact_first(self):
+        articles=[dict(id='1',title='Altium',content='Données installées',sources=['https://example.com/ees'],licenses=[dict(service='EES',key='123')]),
+                  dict(id='2',title='ANSYS',content='Installées'),
+                  dict(id='3',title='Suite EES',content=''),
+                  dict(id='4',title='EES Professional',content=''),
+                  dict(id='5',title='EES',content='')]
+        self.assertEqual([a['title'] for a in search_articles(articles,'  ees  ')],
+                         ['EES','EES Professional','Suite EES'])
+        self.assertEqual(search_articles(articles,'donnees'),[])
+        self.assertEqual([a['title'] for a in search_articles(articles,'professional ees')],['EES Professional'])
 
     def test_software_sources_licenses_and_legacy_compatibility(self):
         software=dict(self.articles[0],sources=['https://example.com/setup',r'\\serveur\sources'],
                       licenses=[dict(service='Comptabilité',key='00123'),dict(service='Support',key='ABC-456')])
         save_articles(self.path,[software,self.articles[1]])
         self.assertEqual(load_articles(self.path),[software,self.articles[1]])
-        self.assertEqual(search_articles([software],'comptabilite'),[software])
-        self.assertEqual(search_articles([software],'example.com'),[software])
+        self.assertEqual(search_articles([software],'comptabilite'),[])
+        self.assertEqual(search_articles([software],'example.com'),[])
         for changes in ({'sources':'invalid'},{'sources':[123]},{'licenses':[{'service':'Support'}]}):
             save_articles(self.path,[dict(software,**changes)])
             with self.assertRaises(ValueError):load_articles(self.path)
@@ -131,7 +142,7 @@ class DocumentationTest(unittest.TestCase):
                 app.show_documentation()
                 self.assertFalse(app.documentation.can_edit())
                 self.assertFalse(app.documentation.persist([]))
-                app.documentation.query.set('nouvelle etape')
+                app.documentation.query.set('reseau modifie')
                 self.assertEqual(len(app.documentation.results),1)
                 self.assertEqual(app.documentation.content.cget('state'),'disabled')
                 self.assertIn('Service BO : 00123-ABC',app.documentation.content.get('1.0','end'))
@@ -166,11 +177,11 @@ class DocumentationTest(unittest.TestCase):
                         # L'écran est gardé en mémoire : il retrouve la recherche du passage précédent.
                         if theme!='light' or size!='800x600':
                             self.assertIs(docs,premier)
-                            self.assertEqual(docs.query.get(),'configuration')
+                            self.assertEqual(docs.query.get(),'connexion linux')
                         premier=docs
                         docs.query.set('')
                         self.assertEqual({a['id'] for a in docs.results},{'1','2','3'})
-                        docs.query.set('configuration');app.update()
+                        docs.query.set('connexion linux');app.update()
                         self.assertEqual(docs.selected_id,'3')
                         self.assertIn('configuration',docs.content.get('1.0','end'))
             finally:app.destroy()

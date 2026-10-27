@@ -56,13 +56,15 @@ def folded(text):
 
 
 def search_articles(articles,query=''):
-    terms=folded(query).split()
-    result=[]
-    for article in articles:
-        haystack=folded(' '.join(article[k] for k in ('title','content')))
-        haystack+=' '+folded(' '.join(article.get('sources',[]))+' '+' '.join(v['service'] for v in article.get('licenses',[])))
-        if all(term in haystack for term in terms):result.append(article)
-    return sorted(result,key=lambda a:folded(a['title']))
+    """Recherche uniquement dans le nom, avec les correspondances exactes en tête."""
+    query=' '.join(folded(query).split())
+    terms=query.split()
+    result=[article for article in articles
+            if all(term in folded(article['title']) for term in terms)]
+    def rank(article):
+        title=' '.join(folded(article['title']).split())
+        return (0 if title==query else 1 if title.startswith(query) else 2,title)
+    return sorted(result,key=rank)
 
 
 def source_target(source):
@@ -186,7 +188,7 @@ class Documentation(ttk.Frame):
             self.articles=[];self.failed=True
             app.error('Wiki BO indisponible',str(err))
         controls=ttk.Frame(self);controls.pack(fill='x',pady=(0,8))
-        ttk.Label(controls,text='Rechercher',style='Muted.TLabel').pack(side='left',padx=(0,12))
+        ttk.Label(controls,text='Nom du logiciel',style='Muted.TLabel').pack(side='left',padx=(0,12))
         self.query=tk.StringVar()
         search_row=ttk.Frame(controls);search_row.pack(side='left',fill='x',expand=True)
         self.search_box=SearchBox(search_row,app,self.query,radius=8)
