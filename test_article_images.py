@@ -67,7 +67,7 @@ class ArticleImagesTest(unittest.TestCase):
     def test_persistence_and_validation(self):
         article=dict(id='1',title='Capture',system='Tous',category='',keywords='',content='',images=[encode_image(self.source)])
         with tempfile.TemporaryDirectory() as folder:
-            path=Path(folder)/'documentation.json';save_articles(path,[article])
+            path=Path(folder)/'wiki_bo.json';save_articles(path,[article])
             self.assertEqual(load_articles(path),[article])
         for changes in ({'width':False},{'offset':1},{'data':'invalid'}):
             with self.assertRaises(ValueError):validate_images(dict(article,images=[dict(article['images'][0],**changes)]))
@@ -76,8 +76,8 @@ class ArticleImagesTest(unittest.TestCase):
 class ImageEditorIntegrationTest(unittest.TestCase):
     def test_save_reader_reopen_and_cancel(self):
         with tempfile.TemporaryDirectory() as folder:
-            path=Path(folder)/'documentation.json'
-            with patch.object(ndt,'DOCUMENTATION_FILE',path),patch.object(ndt,'SETTINGS_FILE',Path(folder)/'settings.json'):
+            path=Path(folder)/'wiki_bo.json'
+            with patch.object(ndt,'WIKI_BO_FILE',path),patch.object(ndt,'SETTINGS_FILE',Path(folder)/'settings.json'):
                 app=ndt.App(session=droits.session_bypass());app.attributes('-alpha',0)
                 try:
                     app.session_user='coordinateur';app.show_admin();app.documentation_editor.edit_article()

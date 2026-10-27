@@ -20,14 +20,14 @@ def load_articles(path):
     if not path.exists():return []
     data=json.loads(path.read_text(encoding='utf-8'))
     if not isinstance(data,dict) or data.get('version')!=1 or not isinstance(data.get('articles'),list):
-        raise ValueError('Le fichier de documentation est invalide.')
+        raise ValueError('Le fichier du Wiki BO est invalide.')
     articles=data['articles']
     ids=set()
     for article in articles:
         if not isinstance(article,dict) or any(not isinstance(article.get(key),str) for key in ('id','title','content')):
-            raise ValueError('Un article de documentation est invalide.')
+            raise ValueError('Une fiche logiciel du Wiki BO est invalide.')
         if not article['id'] or article['id'] in ids:
-            raise ValueError('Un article de documentation est invalide.')
+            raise ValueError('Une fiche logiciel du Wiki BO est invalide.')
         ids.add(article['id'])
         if not isinstance(article.get('sources',[]),list) or any(not isinstance(v,str) for v in article.get('sources',[])):
             raise ValueError('Les sources du logiciel sont invalides.')
@@ -40,6 +40,15 @@ def load_articles(path):
 
 def save_articles(path,articles):
     ecrire_json_atomique(path,{'version':1,'articles':articles})
+
+
+def load_wiki(path):
+    """Initialise le fichier dédié et reprend l'ancienne bibliothèque une seule fois."""
+    if path.exists():return load_articles(path)
+    legacy=path.with_name('documentation.json')
+    articles=load_articles(legacy) if path.name=='wiki_bo.json' and legacy.exists() else []
+    save_articles(path,articles)
+    return articles
 
 
 def folded(text):
@@ -172,7 +181,7 @@ class Documentation(ttk.Frame):
         self.app,self.path,self.editable=app,path,editable
         self.selected_id=None
         self.failed=False
-        try:self.articles=load_articles(path)
+        try:self.articles=load_wiki(path)
         except (OSError,ValueError) as err:
             self.articles=[];self.failed=True
             app.error('Wiki BO indisponible',str(err))

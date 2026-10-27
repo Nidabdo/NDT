@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from tkinter import ttk
 from unittest.mock import patch, Mock
-from documentation import load_articles, save_articles, search_articles, source_target, Documentation
+from documentation import load_articles, save_articles, search_articles, source_target, Documentation, load_wiki
 import droits
 from test_routes import ndt
 
@@ -18,7 +18,7 @@ def descendants(widget):
 class DocumentationTest(unittest.TestCase):
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
-        self.path=Path(self.temp.name)/'documentation.json'
+        self.path=Path(self.temp.name)/'wiki_bo.json'
         self.articles=[dict(id='1',title='Connexion réseau',system='Windows',category='Réseau',keywords='DNS',content='Vérifier la résolution de noms.'),
                        dict(id='2',title='Imprimante',system='Tous',category='Matériel',keywords='papier',content='Contrôler le bac.'),
                        dict(id='3',title='Connexion Linux',system='Linux',category='Réseau',keywords='DNS',content='Vérifier la configuration.')]
@@ -60,6 +60,35 @@ class DocumentationTest(unittest.TestCase):
             reader.app.error.assert_called_once()
         self.assertIsNone(source_target('simple commentaire'))
 
+    def test_wiki_migration_is_once_and_preserves_original(self):
+        legacy=self.path.with_name('documentation.json')
+        save_articles(legacy,self.articles)
+        original=legacy.read_bytes()
+        self.assertEqual(load_wiki(self.path),self.articles)
+        self.assertEqual(legacy.read_bytes(),original)
+        save_articles(self.path,[])
+        self.assertEqual(load_wiki(self.path),[])  # ne pas réimporter les fiches supprimées
+        self.path.write_text('{}',encoding='utf-8')
+        with self.assertRaises(ValueError):load_wiki(self.path)
+        self.assertEqual(self.path.read_text(encoding='utf-8'),'{}')
+
+    def test_wiki_persists_after_application_restart(self):
+        with patch.object(ndt,'WIKI_BO_FILE',self.path),patch.object(ndt,'SETTINGS_FILE',Path(self.temp.name)/'settings.json'):
+            app=ndt.App(session=droits.session_bypass());app.withdraw()
+            try:
+                app.session_user='coordinateur';app.show_admin()
+                self.assertTrue(self.path.exists())
+                software=dict(id='software',title='Logiciel BO',content='Installer',
+                              sources=[r'\\serveur\logiciels'],licenses=[dict(service='BO',key='001-ABC')])
+                self.assertTrue(app.documentation_editor.persist([software]))
+            finally:app.destroy()
+            app=ndt.App(session=droits.session_bypass());app.withdraw()
+            try:
+                app.show_documentation()
+                self.assertEqual(app.documentation.articles,[software])
+                self.assertIn('001-ABC',app.documentation.content.get('1.0','end'))
+            finally:app.destroy()
+
     def test_failed_save_preserves_articles(self):
         save_articles(self.path,self.articles)
         with patch('stockage.os.replace',side_effect=OSError('disk error')):
@@ -71,7 +100,7 @@ class DocumentationTest(unittest.TestCase):
         with self.assertRaises(ValueError):load_articles(self.path)
 
     def test_coordinator_crud_and_public_reader(self):
-        with patch.object(ndt,'DOCUMENTATION_FILE',self.path),patch.object(ndt,'SETTINGS_FILE',Path(self.temp.name)/'settings.json'):
+        with patch.object(ndt,'WIKI_BO_FILE',self.path),patch.object(ndt,'SETTINGS_FILE',Path(self.temp.name)/'settings.json'):
             app=ndt.App(session=droits.session_bypass());app.withdraw()
             try:
                 app.session_user='coordinateur';app.show_admin()
@@ -114,7 +143,7 @@ class DocumentationTest(unittest.TestCase):
 
     def test_reader_and_home_fit_window_and_theme(self):
         save_articles(self.path,self.articles)
-        with patch.object(ndt,'DOCUMENTATION_FILE',self.path),patch.object(ndt,'SETTINGS_FILE',Path(self.temp.name)/'settings.json'):
+        with patch.object(ndt,'WIKI_BO_FILE',self.path),patch.object(ndt,'SETTINGS_FILE',Path(self.temp.name)/'settings.json'):
             app=ndt.App(session=droits.session_bypass());app.attributes('-alpha',0)
             try:
                 for theme in ('light','dark'):

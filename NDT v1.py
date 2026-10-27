@@ -46,7 +46,7 @@ else:
 DATA_FILE = BASE_DIR / "questions.json"
 SETTINGS_FILE = BASE_DIR / "settings.json"
 AUTH_FILE = BASE_DIR / "coordination_auth.json"
-DOCUMENTATION_FILE = BASE_DIR / "documentation.json"
+WIKI_BO_FILE = BASE_DIR / "wiki_bo.json"
 SCRIPTS_FILE = BASE_DIR / "scripts.json"
 RELANCES_FILE = BASE_DIR / "relances.json"
 
@@ -531,7 +531,7 @@ class App(tk.Tk):
 
         def construire(page):
             ttk.Label(page, text='Wiki BO', style='Title.TLabel').pack(anchor='w', pady=(0, 8))
-            self.documentation = Documentation(page, self, DOCUMENTATION_FILE)
+            self.documentation = Documentation(page, self, WIKI_BO_FILE)
             self.documentation.pack(fill='both', expand=True)
         self._page('documentation', construire)
 
@@ -1331,7 +1331,7 @@ class App(tk.Tk):
         notebook.add(tab_t, text="Synthèse")
         tab_docs = ttk.Frame(notebook, padding=(0,16,0,0))
         notebook.add(tab_docs, text="Wiki BO")
-        self.documentation_editor = Documentation(tab_docs,self,DOCUMENTATION_FILE,editable=True)
+        self.documentation_editor = Documentation(tab_docs,self,WIKI_BO_FILE,editable=True)
         self.documentation_editor.pack(fill='both',expand=True)
         tab_account = ttk.Frame(notebook, padding=24)
         notebook.add(tab_account, text="Compte")
