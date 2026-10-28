@@ -5,7 +5,7 @@ import acces
 
 ECRANS = ("accueil", "diagnostic", "documentation", "outils", "scripts", "relance", "coordination")
 # Droits qui ne sont pas des écrans : ils débloquent une action dans un écran.
-DROITS = ("scripts_edition", "relances_edition")
+DROITS = ("scripts_edition", "relances_edition", "wiki_edition")
 # Clés de navigation de l'application -> écran de acces.py
 ECRAN_PAR_CLE = {"home": "accueil", "question": "diagnostic", "documentation": "documentation",
                  "outils": "outils", "scripts": "scripts", "relance": "relance", "admin": "coordination"}

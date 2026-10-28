@@ -531,7 +531,7 @@ class App(tk.Tk):
 
         def construire(page):
             ttk.Label(page, text='Wiki BO', style='Title.TLabel').pack(anchor='w', pady=(0, 8))
-            self.documentation = Documentation(page, self, WIKI_BO_FILE)
+            self.documentation = Documentation(page, self, WIKI_BO_FILE, editable=self.autorise("wiki_edition"))
             self.documentation.pack(fill='both', expand=True)
         self._page('documentation', construire)
 

@@ -13,13 +13,14 @@
 #  Écrans possibles :
 #    "accueil"        Pause Cafew : outils, équipes, recherche SMAX (toujours visible)
 #    "diagnostic"     questionnaire de diagnostic
-#    "documentation"  procédures
+#    "documentation"  Wiki BO (consultation)
 #    "outils"         outils poste : prise en main, ping, C$ / D$...
 #    "scripts"        scripts du bureau technique (consulter, remplir, copier)
 #    "relance"        mails de relance des tickets (J0, J2, J4, J7, J14)
 #    "coordination"   espace de coordination (demande aussi son mot de passe)
 #
 #  Droits possibles (ils se placent dans un profil comme un écran) :
+#    "wiki_edition"      ajouter, modifier et supprimer des logiciels du Wiki BO
 #    "scripts_edition"   ajouter, modifier et supprimer des scripts
 #    "relances_edition"  ajouter, modifier et supprimer des modèles de relance
 # =====================================================================
@@ -32,9 +33,9 @@
 PROFILS = {
     "Minimal":    ["accueil", "diagnostic"],
     "FO":         ["accueil", "diagnostic", "documentation", "outils", "relance"],
-    "BO":         ["accueil", "diagnostic", "documentation", "outils", "scripts", "relance"],
+    "BO":         ["accueil", "diagnostic", "documentation", "outils", "scripts", "relance", "wiki_edition"],
     "Complet":    ["accueil", "diagnostic", "documentation", "outils", "scripts", "relance",
-                   "scripts_edition", "relances_edition", "coordination"],
+                   "scripts_edition", "relances_edition", "wiki_edition", "coordination"],
 }
 
 

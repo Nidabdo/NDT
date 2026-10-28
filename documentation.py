@@ -281,7 +281,7 @@ class Documentation(ttk.Frame):
                     self.content.tag_bind(tag,'<Enter>',lambda e:self.content.configure(cursor='hand2'))
                     self.content.tag_bind(tag,'<Leave>',lambda e:self.content.configure(cursor='xterm'))
         else:
-            self.image_document.load('Aucun résultat pour cette recherche.' if self.articles else 'Votre Wiki BO est prêt.\n\nAjoutez les logiciels depuis l’onglet Wiki BO de l’espace Coordination.')
+            self.image_document.load('Aucun résultat pour cette recherche.' if self.articles else 'Votre Wiki BO est prêt.\n\nLes utilisateurs autorisés peuvent ajouter les logiciels avec le bouton « Ajouter un logiciel ».')
         self.content.configure(state='disabled');self.content.yview_moveto(0)
 
     def open_source(self,source):
@@ -296,7 +296,10 @@ class Documentation(ttk.Frame):
         return 'break'
 
     def can_edit(self):
-        return self.editable and not self.failed and getattr(self.app,'session_user',None) in ('coordinateur','admin')
+        session=getattr(self.app,'session',None)
+        return self.editable and not self.failed and (
+            getattr(self.app,'session_user',None) in ('coordinateur','admin')
+            or session is not None and session.autorise('wiki_edition'))
 
     def persist(self,articles):
         if not self.can_edit():return False

@@ -139,6 +139,7 @@ class DocumentationTest(unittest.TestCase):
                 self.assertEqual(saved['licenses'],[{'service':'Service BO','key':'00123-ABC'}])
                 submit('Test réseau modifié','Nouvelle étape',saved)
                 self.assertEqual(load_articles(self.path)[0]['id'],saved['id'])
+                app.session=droits.Session(login='lecteur',ecrans=frozenset(('accueil','documentation')),profils=('FO',))
                 app.show_documentation()
                 self.assertFalse(app.documentation.can_edit())
                 self.assertFalse(app.documentation.persist([]))
@@ -151,6 +152,28 @@ class DocumentationTest(unittest.TestCase):
                 with patch.object(app,'confirm',return_value=True):app.documentation_editor.delete_selected()
                 self.assertEqual(load_articles(self.path),[])
             finally:app.destroy()
+
+    def test_bo_can_edit_from_wiki_and_fo_cannot(self):
+        import acces
+        for profile,allowed in (('BO',True),('FO',False),('Complet',True)):
+            with self.subTest(profile=profile),patch.object(ndt,'WIKI_BO_FILE',self.path),patch.object(ndt,'SETTINGS_FILE',Path(self.temp.name)/'settings.json'):
+                session=droits.Session(login='test',ecrans=frozenset(acces.PROFILS[profile]),profils=(profile,))
+                app=ndt.App(session=session);app.withdraw()
+                try:
+                    app.show_documentation()
+                    wiki=app.documentation
+                    self.assertIsNone(app.session_user)
+                    self.assertEqual(wiki.can_edit(),allowed)
+                    self.assertEqual(hasattr(wiki,'buttons'),allowed)
+                    if allowed:
+                        self.assertTrue(wiki.persist(self.articles))
+                        self.assertTrue(wiki.persist([dict(self.articles[0],title='Modifié')]))
+                        with patch.object(app,'confirm',return_value=True):wiki.delete_selected()
+                        self.assertEqual(load_articles(self.path),[])
+                        app.session=droits.Session(login='sans_droit')
+                        self.assertFalse(wiki.persist(self.articles))
+                    else:self.assertFalse(wiki.persist(self.articles))
+                finally:app.destroy()
 
     def test_reader_and_home_fit_window_and_theme(self):
         save_articles(self.path,self.articles)
