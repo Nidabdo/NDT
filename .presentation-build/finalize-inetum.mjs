@@ -1,0 +1,13 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import {pathToFileURL} from 'node:url';
+import {Presentation,PresentationFile,FileBlob} from '@oai/artifact-tool';
+const root='C:/Users/nicol/OneDrive/Desktop/NDT';
+const tmp=root+'/.presentation-build/template';
+const source='C:/Users/nicol/Downloads/PowerPoint 2026 Template v5.5 (4).potx';
+const skill='C:/Users/nicol/.codex/plugins/cache/openai-primary-runtime/presentations/26.1026.10807/skills/presentations';
+const runtime='C:/Program Files/WindowsApps/OpenAI.CodexPrimaryRuntime.v26-1026-487-0_26.1026.487.0_x64__3k8sg7r9htsxt/dependencies';
+const {finalizePresentation}=await import(pathToFileURL(skill+'/container_tools/artifact_tool_utils.mjs').href);
+const result=await finalizePresentation({workspaceDir:root,candidatePath:tmp+'/candidate-inetum.pptx',finalPath:root+'/presentation_client/NDT_Presentation_client_Inetum_2026.pptx',pythonExecutable:runtime+'/python/python.exe',integrityValidatorPath:skill+'/container_tools/inspect_presentation_package_integrity.py',layoutValidatorPath:skill+'/container_tools/inspect_presentation_layout_geometry.py',layoutArgs:['--expected-slide-size-emu','12192000,6858000','--validate-heading-fit','--require-native-table-slide','2'],requiredNativeTableOwnerSlides:[2],fontPolicy:{basis:'reference',families:['Poppins'],referencePath:tmp+'/reference.pptx',referenceSha256:crypto.createHash('sha256').update(await fs.readFile(tmp+'/reference.pptx')).digest('hex')},verifyArtifactToolImport:true,receiptPath:tmp+'/validation-inetum-final.json'});
+console.log(JSON.stringify(result));

@@ -397,7 +397,8 @@ class ScriptsBT(ttk.Frame):
         corps = ttk.Frame(win, padding=24)
         corps.pack(fill="both", expand=True)
         corps.columnconfigure(1, weight=1)
-        sections = sorted({s["section"] for s in self.scripts}, key=folded)
+        sections = sorted({"Active Directory", "Divers", "Exchange"} |
+                          {s["section"] for s in self.scripts}, key=folded)
         champs = {}
         for ligne, (cle, libelle) in enumerate((("section", "Section"), ("titre", "Titre"),
                                                 ("langage", "Langage"), ("description", "Description"))):
